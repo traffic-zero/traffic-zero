@@ -1,0 +1,22 @@
+[project]
+name = "traffic-zero"
+version = "0.1.0"
+description = "Adaptive multi-agent traffic lights system"
+readme = "README.md"
+dependencies = [
+    "numpy",
+    "pandas",
+    "sumolib",
+    "traci",
+    "matplotlib",
+    "seaborn",
+    "scipy",
+    "networkx",
+    "torch",
+    "gym",
+    "ray[rllib]",
+    "tensorboard",
+    "opencv-python",
+]
+requires-python = ">=3.13"
+license = {text = "MIT"}
