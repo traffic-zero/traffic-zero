@@ -37,6 +37,7 @@ source .venv/bin/activate  # On Windows use `.\.venv\Scripts\activate`
 pip install --upgrade pip
 pip install uv
 uv sync
+pre-commit install # sets up pre-commit hooks for linting and formatting
 ```
 
 ### 4. Install SUMO

@@ -4,7 +4,7 @@ Thanks for your interest in contributing! This document outlines how to collabor
 
 ## How to Contribute
 
-1. **Fork the Repository**  
+1. **Fork the Repository**
    Click the “Fork” button on GitHub to create your own copy.
 
 2. **Clone Your Fork**
@@ -28,10 +28,10 @@ Thanks for your interest in contributing! This document outlines how to collabor
     - `docs/` → Documentation updates
 
 
-4. **Make Changes**  
+4. **Make Changes**
    Implement your feature or fix the bug. Ensure code quality and consistency.
 
-5. **Test Your Changes**  
+5. **Test Your Changes**
    Run existing tests and add new ones if applicable.
 
 6. **Commit Your Changes**
@@ -46,7 +46,7 @@ Thanks for your interest in contributing! This document outlines how to collabor
     ```bash
     git push --set-upstream origin feature/your-feature-name
     ```
-    
+
 8. **Create a Pull Request**
     Go to your fork on GitHub and click the “Compare & pull request” button. Provide a clear description of your changes. Address feedback from maintainers.
 
@@ -59,12 +59,12 @@ Thanks for your interest in contributing! This document outlines how to collabor
 
 ## Guidelines
 - **Commit size**: Use small, focused commits.
-- **Code Style**: Follow PEP 8 for Python code. Use linters like `flake8` or `black`.
+- **Code Style**: Follow PEP 8 for Python code. Use linters & formatters like `flake8` or `black`. (Recommended: set up pre-commit hooks using `pre-commit install`.)
 - **Documentation**: Update documentation for new features or changes. Use docstrings for functions and classes.
 - **Experiments**:
     - Log seeds, parameters, and environment configuration.
     - Provide reproducible scripts & configs to run experiments.
-- **Data Privacy**: 
+- **Data Privacy**:
     - Do not include sensitive or proprietary data in the repository.
     - Do not include large raw datasets in the repo; use scripts to download/process.
 - **Testing**: Write tests for new features and bug fixes. Ensure all tests pass before submitting a PR.
