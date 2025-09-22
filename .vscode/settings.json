@@ -1,4 +1,6 @@
 {
+    "python.analysis.autoImportCompletions": true,
+    "python.analysis.diagnosticMode": "workspace",
     "[python]": {
         "diffEditor.ignoreTrimWhitespace": false,
         "editor.defaultColorDecorators": "never",
