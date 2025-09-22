@@ -13,7 +13,7 @@ dependencies = [
     "scipy",
     "networkx",
     "torch",
-    "gym",
+    "gymnasium",
     "ray[rllib]",
     "tensorboard",
     "opencv-python",
@@ -23,6 +23,10 @@ dependencies = [
     "flake8>=7.3.0",
     "black[jupyter]>=25.9.0",
     "pre-commit>=4.3.0",
+    "pettingzoo>=1.25.0",
+    "pygame>=2.6.1",
+    "mpe2>=0.0.1",
+    "dash>=3.2.0",
 ]
 requires-python = ">=3.13"
 license = {text = "MIT"}
