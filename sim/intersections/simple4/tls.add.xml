@@ -1,0 +1,15 @@
+<additional>
+    <tlLogic id="n0" type="static" programID="custom" offset="0">
+
+        <!-- Phase 1: NS green -->
+        <phase duration="20" state="GGGGrrrrGGGGrrrr"/>
+        <!-- Phase 1 yellow -->
+        <phase duration="4"  state="yyyyrrrryyyyrrrr"/>
+
+        <!-- Phase 2: EW green -->
+        <phase duration="20" state="rrrrGGGGrrrrGGGG"/>
+        <!-- Phase 2 yellow -->
+        <phase duration="4"  state="rrrryyyyrrrryyyy"/>
+
+    </tlLogic>
+</additional>

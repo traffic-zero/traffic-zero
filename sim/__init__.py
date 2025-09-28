@@ -9,4 +9,6 @@ TODO: Rewrite this documentation when the module is populated.
 """
 
 # TODO: Specify module exports here
+from .sumo_runner import run_intersection
+
 __all__ = []
