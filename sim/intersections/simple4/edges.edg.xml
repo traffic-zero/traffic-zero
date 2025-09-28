@@ -1,0 +1,13 @@
+<edges>
+    <!-- Incoming edges -->
+    <edge id="eN" from="n1" to="n0"/>
+    <edge id="eS" from="n3" to="n0"/>
+    <edge id="eE" from="n2" to="n0"/>
+    <edge id="eW" from="n4" to="n0"/>
+
+    <!-- Outgoing edges -->
+    <edge id="eN_out" from="n0" to="n1"/>
+    <edge id="eS_out" from="n0" to="n3"/>
+    <edge id="eE_out" from="n0" to="n2"/>
+    <edge id="eW_out" from="n0" to="n4"/>
+</edges>

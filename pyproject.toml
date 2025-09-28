@@ -16,6 +16,7 @@ dependencies = [
     "gymnasium",
     "ray[rllib]",
     "tensorboard",
+    "traci>=1.19.0",
     "opencv-python",
     "flake8-bugbear>=24.12.12",
     "flake8-comprehensions>=3.17.0",
