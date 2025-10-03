@@ -7,7 +7,7 @@ def run_intersection(simulation_name: str):
     Run SUMO for a given intersection project folder.
 
     Args:
-        simulation_string (str): Name of simulation form SIMULATION.md
+        simulation_name (str): Name of simulation form SIMULATION.md
     """
     base_dir = "./sim/intersections/" + simulation_name
 
