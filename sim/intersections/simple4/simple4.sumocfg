@@ -1,0 +1,20 @@
+<?xml version='1.0' encoding='utf-8'?>
+<configuration>
+    <input>
+        <net-file value="network.net.xml" />
+        <route-files value="routes.rou.xml" />
+        <additional-files value="tls.add.xml" />
+    </input>
+    <time>
+        <begin value="0" />
+        <end value="3600" />
+        <step-length value="0.05" />
+    </time>
+    <processing>
+        <lateral-resolution value="0.8" />
+    </processing>
+    <report>
+        <verbose value="true" />
+        <no-warnings value="false" />
+    </report>
+</configuration>
