@@ -14,7 +14,7 @@ dependencies = [
     "networkx",
     "torch",
     "gymnasium",
-    "ray[rllib]",
+    "ray[rllib]; platform_system != 'Windows'",
     "tensorboard",
     "traci>=1.19.0",
     "opencv-python",
@@ -29,7 +29,7 @@ dependencies = [
     "mpe2>=0.0.1",
     "dash>=3.2.0",
 ]
-requires-python = ">=3.13"
+requires-python = "==3.12"
 license = {text = "MIT"}
 
 [tool.pyright]
