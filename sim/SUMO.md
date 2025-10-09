@@ -1,29 +1,43 @@
-# Simulations
+# SUMO Simulations
 
-## Getting started
+Run traffic simulations using SUMO (Simulation of Urban MObility).
 
-1. Finish project setup ["Getting Started"](../README.md)
-2. Launch `sumo-gui` for any simulation:
-    ```py
-    from sim import run_intersection
+## Prerequisites
 
-    # Call the runner for a specific simulation
-    run_intersection("simple4")
-    ```
-3. Choose the name of simulation you want to run from "List of Simulations"
+1. Complete project setup - see [Getting Started](../README.md)
+2. Install SUMO (should be done during project setup)
 
-## Run in CARLA 3D Environment (Optional)
+## Quick Start
 
-Want to see your simulations in 3D? Run them in CARLA simulator!
+### Interactive Mode (Manual Control)
+
+Perfect for learning and exploring simulations visually:
 
 ```python
-from sim import run_in_carla
+from sim import run_interactive
 
-# Run simple4 in CARLA's 3D environment
-run_in_carla("simple4", duration=120)
+# Launch SUMO-GUI with manual control
+run_interactive("simple4")
 ```
 
-**Setup required**: See [CARLA.md](./CARLA.md) for quick setup instructions.
+You'll be able to manually start, pause, and stop the simulation using the SUMO-GUI controls.
+
+### Automated Mode (Programmatic Control)
+
+For experiments and custom traffic control algorithms:
+
+```python
+from sim import run_automated
+
+# Run automated simulation with TraCI control
+run_automated("simple4")
+```
+
+This runs the simulation with programmatic control for 30 minutes, including adaptive traffic light algorithms.
+
+## What's next?
+
+**Run co-simulations with carla**: See [CARLA.md](./CARLA.md) for installation and setup instructions.
 
 ## List of Simulations
 

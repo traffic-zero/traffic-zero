@@ -33,18 +33,26 @@ def run_in_carla(
     base_dir = Path(__file__).parent.parent / "intersections" / simulation_name
     sumo_cfg = base_dir / f"{simulation_name}.sumocfg"
     
-    # Check if .sumocfg exists, if not guide user to create it
+    # Auto-generate .sumocfg if it doesn't exist
     if not sumo_cfg.exists():
-        print(f"⚠ Configuration file not found: {sumo_cfg}")
-        print("\nYou need to create a SUMO configuration file.")
-        print("Run the following to generate it:")
-        print(f"\n  python -m sim.generate_sumocfg {simulation_name}\n")
-        return
+        print(f"[INFO] Configuration file not found: {sumo_cfg}")
+        print(f"[INFO] Auto-generating SUMO configuration file...")
+        
+        # Import and generate the config
+        from ..sumo.generate_config import generate_sumocfg
+        success = generate_sumocfg(simulation_name)
+        
+        if not success:
+            print("[ERROR] Failed to generate SUMO configuration file")
+            print(f"[ERROR] Please check that the simulation '{simulation_name}' exists")
+            return
+        
+        print("[SUCCESS] Configuration file generated successfully")
     
     # Check CARLA installation
     carla_root = os.environ.get('CARLA_ROOT')
     if not carla_root:
-        print("✗ CARLA_ROOT environment variable not set!")
+        print("[ERROR] CARLA_ROOT environment variable not set!")
         print("\nPlease:")
         print("1. Install CARLA (see CARLA_SETUP.md)")
         print("2. Set CARLA_ROOT environment variable:")
@@ -78,13 +86,13 @@ def run_in_carla(
         cosim.run_cosimulation(duration=duration)
         
     except ImportError as e:
-        print(f"✗ Error importing CARLA components: {e}")
+        print(f"[ERROR] Error importing CARLA components: {e}")
         print("\nPlease check:")
         print("1. CARLA is installed correctly")
         print("2. CARLA Python API is in PYTHONPATH")
         print("3. See CARLA_SETUP.md for detailed instructions")
     except Exception as e:
-        print(f"✗ Error during co-simulation: {e}")
+        print(f"[ERROR] Error during co-simulation: {e}")
         raise
 
 
