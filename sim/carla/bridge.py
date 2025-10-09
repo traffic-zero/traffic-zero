@@ -12,12 +12,34 @@ import argparse
 from typing import Optional, Dict
 import random
 
+# Add CARLA to Python path if CARLA_ROOT is set
+carla_root = os.environ.get('CARLA_ROOT')
+if carla_root:
+    # Add PythonAPI/carla to path
+    carla_egg_path = os.path.join(carla_root, 'PythonAPI', 'carla')
+    if os.path.exists(carla_egg_path) and carla_egg_path not in sys.path:
+        sys.path.append(carla_egg_path)
+    
+    # Also try to find and add the .egg file for specific Python version
+    dist_path = os.path.join(carla_egg_path, 'dist')
+    if os.path.exists(dist_path):
+        # Find .egg file matching current Python version
+        py_version = f"py{sys.version_info.major}{sys.version_info.minor}"
+        for egg_file in os.listdir(dist_path):
+            if egg_file.endswith('.egg') and py_version in egg_file:
+                egg_full_path = os.path.join(dist_path, egg_file)
+                if egg_full_path not in sys.path:
+                    sys.path.append(egg_full_path)
+                break
+
 try:
     import carla
 except ImportError:
     raise ImportError(
         "CARLA Python API not found. Please install CARLA and add "
-        "PythonAPI to your PYTHONPATH. See CARLA_SETUP.md for details."
+        "PythonAPI to your PYTHONPATH. See CARLA.md for details.\n"
+        f"CARLA_ROOT is set to: {carla_root}\n"
+        "Make sure CARLA is installed at that location."
     )
 
 try:
