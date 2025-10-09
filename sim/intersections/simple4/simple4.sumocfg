@@ -9,6 +9,7 @@
         <begin value="0" />
         <end value="3600" />
         <step-length value="0.05" />
+        <quit-on-end value="false" />
     </time>
     <processing>
         <lateral-resolution value="0.8" />

@@ -5,7 +5,7 @@ Provides tools for running traffic simulations in SUMO and CARLA.
 """
 
 # SUMO imports (always available)
-from .sumo import run_intersection, generate_sumocfg
+from .sumo import run_intersection, run_intersection_gui, generate_sumocfg
 
 # CARLA imports (lazy loaded to make CARLA optional)
 def run_in_carla(*args, **kwargs):
@@ -20,6 +20,7 @@ def list_simulations():
 
 __all__ = [
     'run_intersection',
+    'run_intersection_gui',
     'generate_sumocfg',
     'run_in_carla',
     'list_simulations'

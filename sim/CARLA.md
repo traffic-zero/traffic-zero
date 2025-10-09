@@ -248,9 +248,6 @@ python -m sim.carla <scenario_name> --duration <seconds>
 
 # Start CARLA with better performance
 cd $CARLA_ROOT && ./CarlaUE4.exe -quality-level=Low
-
-# Check CARLA setup
-python -m sim.carla.check_setup
 ```
 
 ## FAQ
@@ -272,8 +269,8 @@ A: Yes! CARLA has built-in recording. Check the [CARLA docs](https://carla.readt
 
 ## Need Help?
 
-- Run `python -m sim.carla.check_setup` to diagnose issues
-- Check out `sim/carla/examples.py` for code examples
+- Check `sim/carla/bridge.py` for implementation details
+- Check `sim/carla/runner.py` for the main interface
 - Visit [CARLA docs](https://carla.readthedocs.io/) for CARLA-specific questions
 - See [CARLA-SUMO tutorial](https://carla.readthedocs.io/en/latest/adv_sumo/) for advanced topics
 

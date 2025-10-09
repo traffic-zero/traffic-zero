@@ -20,7 +20,7 @@ def generate_sumocfg(simulation_name: str):
     base_dir = Path(__file__).parent.parent / "intersections" / simulation_name
     
     if not base_dir.exists():
-        print(f"✗ Simulation directory not found: {base_dir}")
+        print(f"[ERROR] Simulation directory not found: {base_dir}")
         return False
     
     # Expected files
@@ -30,12 +30,12 @@ def generate_sumocfg(simulation_name: str):
     
     # Check required files
     if not net_file.exists():
-        print(f"✗ Network file not found: {net_file}")
+        print(f"[ERROR] Network file not found: {net_file}")
         print("Run netconvert first or ensure network.net.xml exists")
         return False
     
     if not route_file.exists():
-        print(f"⚠ Warning: Routes file not found: {route_file}")
+        print(f"[WARNING] Routes file not found: {route_file}")
     
     # Create sumocfg XML
     config = ET.Element('configuration')
@@ -66,6 +66,10 @@ def generate_sumocfg(simulation_name: str):
     step_element = ET.SubElement(time_section, 'step-length')
     step_element.set('value', '0.05')  # Match CARLA step length
     
+    # Prevent early termination when no vehicles present
+    quit_on_end = ET.SubElement(time_section, 'quit-on-end')
+    quit_on_end.set('value', 'false')
+    
     # Processing section
     processing = ET.SubElement(config, 'processing')
     
@@ -89,7 +93,7 @@ def generate_sumocfg(simulation_name: str):
     ET.indent(tree, space='    ')
     tree.write(output_file, encoding='utf-8', xml_declaration=True)
     
-    print(f"✓ Configuration file created: {output_file}")
+    print(f"[SUCCESS] Configuration file created: {output_file}")
     return True
 
 
@@ -108,11 +112,11 @@ def main():
     success = generate_sumocfg(args.simulation)
     
     if success:
-        print("\n✓ Ready for CARLA co-simulation!")
+        print("\n[SUCCESS] Ready for CARLA co-simulation!")
         print(f"\nRun with:")
         print(f"  python -m sim.carla {args.simulation}")
     else:
-        print("\n✗ Failed to generate configuration")
+        print("\n[ERROR] Failed to generate configuration")
         return 1
     
     return 0

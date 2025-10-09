@@ -1,6 +1,30 @@
 import os
 import subprocess
 import traci
+from .generate_config import generate_sumocfg
+
+def run_intersection_gui(simulation_name: str):
+    """
+    Run SUMO-GUI directly without TraCI control for interactive simulation.
+    
+    Args:
+        simulation_name (str): Name of simulation from SIMULATION.md
+    """
+    base_dir = "./sim/intersections/" + simulation_name
+    SUMO_CFG = os.path.join(base_dir, simulation_name + ".sumocfg")
+    
+    # Check if config file exists
+    if not os.path.exists(SUMO_CFG):
+        print(f"Error: Configuration file not found: {SUMO_CFG}")
+        print("Run generate_sumocfg first to create the configuration file.")
+        return
+    
+    # Launch SUMO-GUI directly
+    sumo_cmd = ["sumo-gui", "-c", SUMO_CFG]
+    print(f">>> Starting SUMO-GUI with {SUMO_CFG}")
+    print(">>> This will run interactively - you can control the simulation manually")
+    subprocess.run(sumo_cmd)
+
 
 def run_intersection(simulation_name: str):
     """
@@ -15,7 +39,7 @@ def run_intersection(simulation_name: str):
     NODES_FILE = os.path.join(base_dir, "nodes.nod.xml")
     EDGES_FILE = os.path.join(base_dir, "edges.edg.xml")
     NET_FILE   = os.path.join(base_dir, "network.net.xml")
-    SUMO_CFG   = os.path.join(base_dir, ".sumocfg")
+    SUMO_CFG   = os.path.join(base_dir, simulation_name + ".sumocfg")
 
     # 1. Build network
     cmd = [
@@ -28,6 +52,10 @@ def run_intersection(simulation_name: str):
     print(f">>> Running netconvert for {base_dir}...")
     subprocess.run(cmd, check=True)
     print(">>> Network generated at", NET_FILE)
+
+    print(">>> Generating SUMO configuration file...")
+    generate_sumocfg(simulation_name)
+    print(">>> SUMO configuration file generated at", SUMO_CFG)
 
     # 2. Launch SUMO-GUI
     sumo_cmd = ["sumo-gui", "-c", SUMO_CFG]
@@ -49,11 +77,15 @@ def run_intersection(simulation_name: str):
         except traci.TraCIException as e:
             print("⚠️ Warning: Could not set program 'custom' -", e)
 
-        # Run simulation loop
-        for step in range(100):
+        # Run simulation loop for much longer
+        step = 0
+        while step < 36000:  # Run for 30 minutes (36000 * 0.05s = 1800s)
             traci.simulationStep()
             phase = traci.trafficlight.getPhase(tls_id)
-            print(f"Step {step}: TLS {tls_id} phase {phase}")
+            
+            # Print every 100 steps to avoid spam
+            if step % 100 == 0:
+                print(f"Step {step}: TLS {tls_id} phase {phase}")
 
             # Example adaptive control: check East approach
             if phase == 0:
@@ -61,10 +93,12 @@ def run_intersection(simulation_name: str):
                 try:
                     q_len_east = traci.lane.getLastStepVehicleNumber("eE_0")
                     if q_len_east > 3:
-                        print("--> Jam east: switching early")
+                        print(f"Step {step}: Jam east: switching early")
                         traci.trafficlight.setPhase(tls_id, 2)
                 except traci.TraCIException:
                     pass  # skip if lane id not found
+            
+            step += 1
 
     print(">>> Simulation complete.")
     traci.close()
