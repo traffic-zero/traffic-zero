@@ -3,12 +3,27 @@ import subprocess
 import traci
 from .generate_config import generate_sumocfg
 
-def run_intersection_gui(simulation_name: str):
+def run_interactive(simulation_name: str):
     """
-    Run SUMO-GUI directly without TraCI control for interactive simulation.
+    Run SUMO-GUI for interactive manual control and visual exploration.
+    
+    This function launches SUMO-GUI where you can manually start, pause, 
+    and stop the simulation. Perfect for learning SUMO, debugging networks,
+    or visually exploring traffic patterns. No programmatic control is available
+    - you interact directly with the GUI.
     
     Args:
-        simulation_name (str): Name of simulation from SIMULATION.md
+        simulation_name (str): Name of simulation from SUMO.md
+                              (e.g., "simple4")
+    
+    Example:
+        >>> run_interactive("simple4")
+        >>> Starting SUMO-GUI with ./sim/intersections/simple4/simple4.sumocfg
+        >>> This will run interactively - you can control the simulation manually
+    
+    Note:
+        Make sure to generate the configuration file first using generate_sumocfg()
+        if it doesn't exist.
     """
     base_dir = "./sim/intersections/" + simulation_name
     SUMO_CFG = os.path.join(base_dir, simulation_name + ".sumocfg")
@@ -26,12 +41,36 @@ def run_intersection_gui(simulation_name: str):
     subprocess.run(sumo_cmd)
 
 
-def run_intersection(simulation_name: str):
+def run_automated(simulation_name: str):
     """
-    Run SUMO for a given intersection project folder.
-
+    Run SUMO with programmatic control for automated experiments.
+    
+    This function launches SUMO-GUI with TraCI control, allowing your Python
+    code to programmatically control traffic lights, collect vehicle data,
+    and implement custom traffic algorithms. The simulation runs for 30 minutes
+    with adaptive traffic light control and provides real-time feedback.
+    
+    Features:
+        - Automatic traffic light phase control
+        - Vehicle detection and queue length monitoring  
+        - Adaptive control based on traffic conditions
+        - Real-time simulation statistics
+    
     Args:
-        simulation_name (str): Name of simulation form SIMULATION.md
+        simulation_name (str): Name of simulation from SUMO.md
+                              (e.g., "simple4")
+    
+    Example:
+        >>> run_automated("simple4")
+        >>> Running netconvert for ./sim/intersections/simple4...
+        >>> Network generated at ./sim/intersections/simple4/network.net.xml
+        >>> Step 0: TLS junction phase 0
+        >>> Step 100: TLS junction phase 2
+    
+    Note:
+        Requires the simulation files (nodes.nod.xml, edges.edg.xml, routes.rou.xml)
+        to exist in the intersection folder. The function will automatically
+        generate the network and configuration files if needed.
     """
     base_dir = "./sim/intersections/" + simulation_name
 

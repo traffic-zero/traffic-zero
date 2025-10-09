@@ -2,6 +2,15 @@
 
 Want to see your SUMO traffic simulations in beautiful 3D? Let's get CARLA running!
 
+## Prerequisites
+
+**Before starting with CARLA**, make sure you've:
+1. Completed the basic project setup (see main [README.md](../README.md))
+2. Successfully run a SUMO simulation using [SUMO.md](./SUMO.md)
+3. Have at least one working simulation scenario (e.g., "simple4")
+
+CARLA is **optional** - it's only for 3D visualization. Your SUMO simulations work perfectly fine without it!
+
 ## What You'll Get
 
 - 🎮 **3D visualization** of your traffic scenarios
@@ -40,19 +49,9 @@ source ~/.bashrc
 
 ⚠️ **Important**: Restart your terminal after this!
 
-### Step 3: Generate SUMO Config
+### Step 3: That's It!
 
-Your scenarios need a `.sumocfg` file for CARLA:
-
-```bash
-python -m sim.sumo.generate_config simple4
-```
-
-You should see:
-```
-✓ Configuration file created: sim/intersections/simple4/simple4.sumocfg
-✓ Ready for CARLA co-simulation!
-```
+No need to manually generate configuration files - the system will auto-generate the `.sumocfg` file when you run your simulation. Just make sure your scenario files (network, routes, etc.) exist in the `sim/intersections/` folder.
 
 ## Running Your First Simulation
 
@@ -147,7 +146,7 @@ run_in_carla('simple4', duration=120)
 
 ```bash
 # Run simulation
-python -m sim.carla simple4 --duration 120
+python -m sim.carla simple4
 
 # List available scenarios
 python -m sim.carla --list
@@ -240,11 +239,12 @@ CARLA can be demanding. Try:
 ## Common Commands
 
 ```bash
-# Generate config for a scenario
-python -m sim.sumo.generate_config <scenario_name>
+# Run in CARLA with custom map (auto-generates config if needed)
+python -m sim.carla <scenario_name>
 
-# Run in CARLA with custom map
-python -m sim.carla <scenario_name> --duration <seconds>
+# Run using Python API
+from sim import run_carla
+run_carla("simple4")
 
 # Start CARLA with better performance
 cd $CARLA_ROOT && ./CarlaUE4.exe -quality-level=Low
