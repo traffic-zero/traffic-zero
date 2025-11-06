@@ -1,7 +1,11 @@
 import os
 import subprocess
 import traci
+from typing import Optional, Dict, Any
 from .generate_config import generate_sumocfg
+from .data_collector import DataCollector
+from .metrics import MetricsCalculator
+from .tls_controller import TLSController
 
 def run_interactive(simulation_name: str, experiment_name: str = None):
     """
@@ -56,38 +60,65 @@ def run_interactive(simulation_name: str, experiment_name: str = None):
     subprocess.run(sumo_cmd)
 
 
-def run_automated(simulation_name: str, experiment_name: str = None):
+def run_automated(
+    simulation_name: str,
+    experiment_name: Optional[str] = None,
+    collect_interval: int = 1,
+    output_dir: Optional[str] = None,
+    enable_data_collection: bool = True,
+    max_steps: int = 36000,
+    gui: bool = False,
+) -> Dict[str, Any]:
     """
     Run SUMO with programmatic control for automated experiments.
     
-    This function launches SUMO-GUI with TraCI control, allowing your Python
-    code to programmatically control traffic lights, collect vehicle data,
-    and implement custom traffic algorithms. The simulation runs for 30 minutes
-    with adaptive traffic light control and provides real-time feedback.
+    This function launches SUMO (with or without GUI) with TraCI control, allowing
+    your Python code to programmatically control traffic lights, collect vehicle data,
+    and implement custom traffic algorithms. The simulation runs with data
+    collection, metrics computation, and traffic light control logging.
     
     Features:
-        - Automatic traffic light phase control
-        - Vehicle detection and queue length monitoring  
-        - Adaptive control based on traffic conditions
-        - Real-time simulation statistics
+        - Comprehensive TraCI data collection at configurable intervals
+        - Evaluation metrics computation (waiting times, throughput, etc.)
+        - Dynamic traffic light control with action logging
+        - CSV export of all collected data and metrics
+        - In-memory data storage for ML training access
+        - Headless mode support (no GUI) for batch processing and servers
     
     Args:
-        simulation_name (str): Name of simulation from SUMO.md
-                              (e.g., "simple4")
+        simulation_name (str): Name of simulation from SUMO.md (e.g., "simple4")
         experiment_name (str, optional): Name of experiment scenario to use.
                                         If provided, generates routes and tls
                                         from scenario before running.
+        collect_interval (int): Collect data every N simulation steps (default: 1)
+        output_dir (str, optional): Directory to save CSV files. If None, no files
+                                   are written but data is still collected in-memory.
+        enable_data_collection (bool): Enable data collection (default: True)
+        max_steps (int): Maximum simulation steps (default: 36000 = 30 minutes)
+        gui (bool): Show SUMO-GUI window (default: False, runs headless with 'sumo')
+    
+    Returns:
+        Dictionary containing:
+            - 'data': Dict of pandas DataFrames (vehicles, traffic_lights, lanes,
+                     junctions, edges, simulation)
+            - 'metrics': Dict of computed metrics
+            - 'tls_controller': TLSController instance for accessing action log
     
     Example:
-        >>> run_automated("simple4")
-        >>> Running netconvert for ./sim/intersections/simple4...
-        >>> Network generated at ./sim/intersections/simple4/network.net.xml
-        >>> Step 0: TLS junction phase 0
-        >>> Step 100: TLS junction phase 2
+        >>> result = run_automated("simple4", collect_interval=10, output_dir="./output")
+        >>> vehicle_data = result['data']['vehicles']
+        >>> metrics = result['metrics']
+        >>> print(f"Average waiting time: {metrics['average_waiting_time']}")
         
-        >>> run_automated("simple4", "rush_hour")
+        >>> run_automated("simple4", "rush_hour", collect_interval=5)
         >>> Loading experiment scenario and generating routes/tls...
         >>> Running simulation with experiment configuration
+        
+        >>> # Run with GUI (for visualization)
+        >>> result = run_automated("simple4", gui=True, output_dir="./output")
+        
+        >>> # Run headless (default, no GUI) for batch processing
+        >>> result = run_automated("simple4", output_dir="./output")
     
     Note:
         Requires the simulation files (nodes.nod.xml, edges.edg.xml, routes.rou.xml)
@@ -121,48 +152,131 @@ def run_automated(simulation_name: str, experiment_name: str = None):
     generate_sumocfg(simulation_name, experiment_name)
     print(">>> SUMO configuration file generated at", SUMO_CFG)
 
-    # 2. Launch SUMO-GUI
-    sumo_cmd = ["sumo-gui", "-c", SUMO_CFG]
-    print(">>> Starting SUMO-GUI with", SUMO_CFG)
+    # 2. Launch SUMO (with or without GUI)
+    if gui:
+        sumo_cmd = ["sumo-gui", "-c", SUMO_CFG]
+        print(">>> Starting SUMO-GUI with", SUMO_CFG)
+    else:
+        sumo_cmd = ["sumo", "-c", SUMO_CFG]
+        print(">>> Starting SUMO (headless) with", SUMO_CFG)
     traci.start(sumo_cmd)
 
-    # 3. Traffic light control
+    # 3. Initialize data collection, metrics, and TLS controller
+    data_collector = None
+    metrics_calculator = None
+    tls_controller = None
+    
+    if enable_data_collection:
+        print(f">>> Initializing data collection (interval: {collect_interval} steps)")
+        data_collector = DataCollector(
+            collect_interval=collect_interval,
+            output_dir=output_dir,
+        )
+        metrics_calculator = MetricsCalculator(output_dir=output_dir)
+    
+    tls_controller = TLSController(output_dir=output_dir)
+    print(">>> Traffic light controller initialized")
+
+    # 4. Traffic light control
     tls_ids = traci.trafficlight.getIDList()
-    print("TLS detected:", tls_ids)
+    print(">>> TLS detected:", tls_ids)
 
     if tls_ids:
         # Use first TL automatically
         tls_id = tls_ids[0]
-        print("Using traffic light:", tls_id)
+        print(">>> Using traffic light:", tls_id)
 
         # Try loading your custom program "custom"
         try:
-            traci.trafficlight.setProgram(tls_id, "custom")
-        except traci.TraCIException as e:
-            print("⚠️ Warning: Could not set program 'custom' -", e)
+            tls_controller.set_step(0)
+            tls_controller.set_program(tls_id, "custom")
+        except Exception as e:
+            print(f">>> Warning: Could not set program 'custom' - {e}")
 
-        # Run simulation loop for much longer
+        # Run simulation loop
         step = 0
-        while step < 36000:  # Run for 30 minutes (36000 * 0.05s = 1800s)
+        print(f">>> Starting simulation (max {max_steps} steps)...")
+        
+        while step < max_steps:
             traci.simulationStep()
-            phase = traci.trafficlight.getPhase(tls_id)
             
-            # Print every 100 steps to avoid spam
+            # Update TLS controller step
+            tls_controller.set_step(step)
+            
+            # Collect data at specified intervals
+            if enable_data_collection and data_collector:
+                data_collector.collect_step(step)
+            
+            # Print progress every 100 steps
             if step % 100 == 0:
-                print(f"Step {step}: TLS {tls_id} phase {phase}")
+                phase = traci.trafficlight.getPhase(tls_id)
+                print(f">>> Step {step}: TLS {tls_id} phase {phase}")
+                
+                # Print metrics summary periodically
+                if enable_data_collection and data_collector and step > 0 and step % 1000 == 0:
+                    dfs = data_collector.get_dataframes()
+                    if not dfs['vehicles'].empty:
+                        metrics = metrics_calculator.calculate_metrics(
+                            dfs['vehicles'],
+                            dfs['lanes'],
+                            dfs['edges'],
+                            dfs['simulation'],
+                        )
+                        print(f">>>   Average waiting time: {metrics.get('average_waiting_time', 0):.2f}s")
+                        print(f">>>   Throughput: {metrics.get('throughput', 0):.0f} vehicles")
 
             # Example adaptive control: check East approach
-            if phase == 0:
-                # Update lane id to match your network naming
-                try:
-                    q_len_east = traci.lane.getLastStepVehicleNumber("eE_0")
-                    if q_len_east > 3:
-                        print(f"Step {step}: Jam east: switching early")
-                        traci.trafficlight.setPhase(tls_id, 2)
-                except traci.TraCIException:
-                    pass  # skip if lane id not found
+            # This demonstrates how to use the TLS controller
+            if step > 0:  # Skip first step
+                phase = traci.trafficlight.getPhase(tls_id)
+                if phase == 0:
+                    # Update lane id to match your network naming
+                    try:
+                        q_len_east = traci.lane.getLastStepVehicleNumber("eE_0")
+                        if q_len_east > 3:
+                            print(f">>> Step {step}: Jam east: switching early")
+                            tls_controller.set_phase(tls_id, 2)
+                    except traci.TraCIException:
+                        pass  # skip if lane id not found
             
             step += 1
 
     print(">>> Simulation complete.")
+    
+    # 5. Final data collection and metrics computation
+    result = {
+        'data': {},
+        'metrics': {},
+        'tls_controller': tls_controller,
+    }
+    
+    if enable_data_collection and data_collector:
+        print(">>> Computing final metrics...")
+        dfs = data_collector.get_dataframes()
+        result['data'] = dfs
+        
+        # Calculate final metrics
+        if metrics_calculator:
+            metrics = metrics_calculator.calculate_metrics(
+                dfs['vehicles'],
+                dfs['lanes'],
+                dfs['edges'],
+                dfs['simulation'],
+            )
+            result['metrics'] = metrics
+            
+            # Print and export metrics
+            metrics_calculator.print_metrics(metrics)
+            metrics_calculator.export_metrics(metrics)
+        
+        # Export all data to CSV
+        print(">>> Exporting data to CSV...")
+        data_collector.export_to_csv()
+    
+    # Export TLS action log
+    if tls_controller:
+        tls_controller.export_action_log()
+    
     traci.close()
+    
+    return result

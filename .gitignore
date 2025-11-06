@@ -251,3 +251,8 @@ __marimo__/
 
 # SUMO simulations
 sim/**/*.net.xml
+
+# Simulation data outputs (CSV files)
+output/**/*.csv
+data/**/*.csv
+*.csv
