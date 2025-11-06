@@ -3,7 +3,6 @@ YAML loader and saver for scenario configurations with JSON schema validation.
 """
 
 import json
-import os
 from pathlib import Path
 from typing import Dict, Any, Optional, List
 

@@ -227,13 +227,14 @@ def run_automated(
 
             # Example adaptive control: check East approach
             # This demonstrates how to use the TLS controller
+            QUEUE_LENGTH_THRESHOLD = 3  # Threshold for triggering early phase switch
             if step > 0:  # Skip first step
                 phase = traci.trafficlight.getPhase(tls_id)
                 if phase == 0:
                     # Update lane id to match your network naming
                     try:
                         q_len_east = traci.lane.getLastStepVehicleNumber("eE_0")
-                        if q_len_east > 3:
+                        if q_len_east > QUEUE_LENGTH_THRESHOLD:
                             print(f">>> Step {step}: Jam east: switching early")
                             tls_controller.set_phase(tls_id, 2)
                     except traci.TraCIException:

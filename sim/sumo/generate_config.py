@@ -4,7 +4,6 @@ Generate SUMO configuration files for scenarios.
 This script creates .sumocfg files needed for CARLA-SUMO co-simulation.
 """
 
-import os
 import argparse
 from pathlib import Path
 from xml.etree import ElementTree as ET

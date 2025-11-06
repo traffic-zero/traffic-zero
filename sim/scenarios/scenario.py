@@ -6,7 +6,7 @@ routes, vehicles, flows, and traffic light programs.
 """
 
 from dataclasses import dataclass, field
-from typing import Optional, List, Union
+from typing import Optional, List
 
 
 @dataclass
