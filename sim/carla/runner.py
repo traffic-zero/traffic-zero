@@ -6,8 +6,6 @@ in CARLA simulator using the official co-simulation bridge.
 """
 
 import os
-import sys
-import subprocess
 from pathlib import Path
 
 

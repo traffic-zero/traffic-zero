@@ -81,6 +81,7 @@ def generate_routes_xml(scenario: Scenario, output_path: Path) -> None:
                 flow_elem.set("id", flow.id)
             else:
                 # Auto-generate unique ID: flow_<route>_<counter>
+                # Only increment counter when auto-generating IDs to ensure uniqueness
                 flow_id = f"flow_{flow.route}_{flow_counter}"
                 flow_elem.set("id", flow_id)
                 flow_counter += 1

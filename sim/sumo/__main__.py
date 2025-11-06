@@ -8,7 +8,7 @@ Usage:
 
 if __name__ == '__main__':
     import sys
-    from .runner import run_intersection
+    from .runner import run_interactive
     
     if len(sys.argv) < 2:
         print("Usage: python -m sim.sumo <simulation_name>")
@@ -16,5 +16,5 @@ if __name__ == '__main__':
         sys.exit(1)
     
     simulation_name = sys.argv[1]
-    run_intersection(simulation_name)
+    run_interactive(simulation_name)
 

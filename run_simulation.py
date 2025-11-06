@@ -1,4 +1,4 @@
-from sim import run_interactive, run_automated, run_carla
+from sim import run_interactive
 
 # Call the runner for a specific simulation
 

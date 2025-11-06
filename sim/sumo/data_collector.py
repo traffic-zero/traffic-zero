@@ -289,6 +289,7 @@ class DataCollector:
                 'arrived_count': arrived_count,
             })
         except traci.TraCIException:
+            # Simulation may have ended or be in invalid state, ignore
             pass
     
     def get_dataframes(self) -> Dict[str, pd.DataFrame]:

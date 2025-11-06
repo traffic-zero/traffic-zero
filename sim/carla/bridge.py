@@ -9,7 +9,7 @@ import os
 import sys
 import time
 import argparse
-from typing import Optional, Dict
+from typing import Optional
 import random
 
 # Add CARLA to Python path if CARLA_ROOT is set
@@ -387,6 +387,7 @@ class CarlaSumoSync:
             try:
                 self.vehicle_actors[sumo_vehicle_id].destroy()
             except Exception:
+                # Actor may have already been destroyed, ignore
                 pass
             del self.vehicle_actors[sumo_vehicle_id]
     
@@ -600,6 +601,7 @@ class CarlaSumoSync:
             traci.close()
             print("✓ SUMO closed")
         except Exception:
+            # TraCI may already be closed, ignore
             pass
         
         print("Cleanup complete.\n")
