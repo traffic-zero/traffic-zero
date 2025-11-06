@@ -1,0 +1,116 @@
+intersection: simple4
+traffic:
+  vehicle_types:
+    - id: car
+      accel: 2.0
+      decel: 4.5
+      sigma: 0.5
+      length: 5
+      maxSpeed: 13.9
+      color: "1,0,0"
+  routes:
+    - id: north_south
+      edges: [eN, eS_out]
+    - id: south_north
+      edges: [eS, eN_out]
+    - id: west_east
+      edges: [eW, eE_out]
+    - id: east_west
+      edges: [eE, eW_out]
+  vehicles:
+    - id: veh0
+      type: car
+      route: north_south
+      depart: 0
+    - id: EW_0
+      type: car
+      route: east_west
+      depart: 0
+    - id: SN_0
+      type: car
+      route: south_north
+      depart: 1
+    - id: WE_0
+      type: car
+      route: west_east
+      depart: 2
+    - id: NS_1
+      type: car
+      route: north_south
+      depart: 3
+    - id: EW_1
+      type: car
+      route: east_west
+      depart: 3
+    - id: SN_1
+      type: car
+      route: south_north
+      depart: 4
+    - id: WE_1
+      type: car
+      route: west_east
+      depart: 5
+    - id: NS_2
+      type: car
+      route: north_south
+      depart: 6
+    - id: EW_2
+      type: car
+      route: east_west
+      depart: 6
+    - id: SN_2
+      type: car
+      route: south_north
+      depart: 7
+    - id: WE_2
+      type: car
+      route: west_east
+      depart: 8
+    - id: NS_3
+      type: car
+      route: north_south
+      depart: 9
+    - id: EW_3
+      type: car
+      route: east_west
+      depart: 9
+    - id: SN_3
+      type: car
+      route: south_north
+      depart: 10
+    - id: WE_3
+      type: car
+      route: west_east
+      depart: 11
+    - id: NS_4
+      type: car
+      route: north_south
+      depart: 12
+    - id: EW_4
+      type: car
+      route: east_west
+      depart: 12
+    - id: SN_4
+      type: car
+      route: south_north
+      depart: 13
+    - id: WE_4
+      type: car
+      route: west_east
+      depart: 14
+traffic_lights:
+  programs:
+    - id: n0
+      program_id: custom
+      offset: 0
+      type: static
+      phases:
+        - duration: 20
+          state: "GGGGrrrrGGGGrrrr"
+        - duration: 4
+          state: "yyyyrrrryyyyrrrr"
+        - duration: 20
+          state: "rrrrGGGGrrrrGGGG"
+        - duration: 4
+          state: "rrrryyyyrrrryyyy"
+

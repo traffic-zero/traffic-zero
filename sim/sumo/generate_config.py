@@ -10,18 +10,42 @@ from pathlib import Path
 from xml.etree import ElementTree as ET
 
 
-def generate_sumocfg(simulation_name: str):
+def generate_sumocfg(simulation_name: str, experiment_name: str = None):
     """
     Generate a .sumocfg file for a given simulation.
     
     Args:
         simulation_name: Name of the simulation folder
+        experiment_name: Optional name of experiment scenario to use.
+                        If provided, generates routes and tls from scenario.
     """
     base_dir = Path(__file__).parent.parent / "intersections" / simulation_name
     
     if not base_dir.exists():
         print(f"[ERROR] Simulation directory not found: {base_dir}")
         return False
+    
+    # If experiment_name is provided, generate routes and tls from scenario
+    if experiment_name is not None:
+        try:
+            from ..scenarios import load_scenario, generate_routes_xml, generate_tls_xml
+            
+            print(f"[INFO] Loading experiment scenario: {experiment_name}")
+            scenario = load_scenario(simulation_name, experiment_name)
+            
+            # Generate routes.rou.xml
+            routes_path = base_dir / "routes.rou.xml"
+            print(f"[INFO] Generating routes from scenario: {routes_path}")
+            generate_routes_xml(scenario, routes_path)
+            
+            # Generate tls.add.xml
+            tls_path = base_dir / "tls.add.xml"
+            print(f"[INFO] Generating traffic lights from scenario: {tls_path}")
+            generate_tls_xml(scenario, tls_path)
+            
+        except Exception as e:
+            print(f"[ERROR] Failed to load/generate scenario: {e}")
+            return False
     
     # Expected files
     net_file = base_dir / "network.net.xml"

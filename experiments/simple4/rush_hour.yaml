@@ -1,0 +1,78 @@
+intersection: simple4
+traffic:
+  vehicle_types:
+    - id: car
+      accel: 2.0
+      decel: 4.5
+      sigma: 0.5
+      length: 5
+      maxSpeed: 13.9
+      color: "1,0,0"
+  routes:
+    - id: north_south
+      edges: [eN, eS_out]
+    - id: south_north
+      edges: [eS, eN_out]
+    - id: west_east
+      edges: [eW, eE_out]
+    - id: east_west
+      edges: [eE, eW_out]
+  flows:
+    # High traffic during rush hour (first 30 minutes)
+    - route: north_south
+      type: car
+      begin: 0
+      end: 1800
+      vehsPerHour: 300
+    - route: south_north
+      type: car
+      begin: 0
+      end: 1800
+      vehsPerHour: 300
+    - route: east_west
+      type: car
+      begin: 0
+      end: 1800
+      vehsPerHour: 300
+    - route: west_east
+      type: car
+      begin: 0
+      end: 1800
+      vehsPerHour: 300
+    # Lower traffic after rush hour
+    - route: north_south
+      type: car
+      begin: 1800
+      end: 3600
+      vehsPerHour: 120
+    - route: south_north
+      type: car
+      begin: 1800
+      end: 3600
+      vehsPerHour: 120
+    - route: east_west
+      type: car
+      begin: 1800
+      end: 3600
+      vehsPerHour: 120
+    - route: west_east
+      type: car
+      begin: 1800
+      end: 3600
+      vehsPerHour: 120
+traffic_lights:
+  programs:
+    - id: n0
+      program_id: custom
+      offset: 0
+      type: static
+      phases:
+        - duration: 20
+          state: "GGGGrrrrGGGGrrrr"
+        - duration: 4
+          state: "yyyyrrrryyyyrrrr"
+        - duration: 20
+          state: "rrrrGGGGrrrrGGGG"
+        - duration: 4
+          state: "rrrryyyyrrrryyyy"
+

@@ -1,0 +1,92 @@
+intersection: simple4
+traffic:
+  vehicle_types:
+    - id: car
+      accel: 2.0
+      decel: 4.5
+      sigma: 0.5
+      length: 5
+      maxSpeed: 13.9
+      color: "0,1,1"  # Cyan to distinguish from other scenarios
+  routes:
+    - id: north_south
+      edges: [eN, eS_out]
+    - id: south_north
+      edges: [eS, eN_out]
+    - id: west_east
+      edges: [eW, eE_out]
+    - id: east_west
+      edges: [eE, eW_out]
+    - id: north_east
+      edges: [eN, eE_out]
+    - id: south_west
+      edges: [eS, eW_out]
+    - id: west_north
+      edges: [eW, eN_out]
+    - id: east_south
+      edges: [eE, eS_out]
+  flows:
+    # North-South direction (starts at 0)
+    - route: north_south
+      type: car
+      begin: 0
+      end: 3600
+      probability: 0.05 # ~60 vehicles/hour = 60/3600 = 0.0167 per second
+    # South-North direction (starts 1 second later to avoid simultaneous spawn)
+    - route: south_north
+      type: car
+      begin: 1
+      end: 3600
+      probability: 0.0167
+    # East-West direction (starts at 0.5 seconds)
+    - route: east_west
+      type: car
+      begin: 0.5
+      end: 3600
+      probability: 0.03
+    # West-East direction (starts 1.5 seconds later to avoid simultaneous spawn)
+    - route: west_east
+      type: car
+      begin: 1.5
+      end: 3600
+      probability: 0.0167
+    # North-East direction (starts 2.5 seconds later to avoid simultaneous spawn)
+    - route: north_east
+      type: car
+      begin: 2.5
+      end: 3600
+      probability: 0.0467
+    # South-West direction (starts 3.5 seconds later to avoid simultaneous spawn)
+    - route: south_west
+      type: car
+      begin: 3.5
+      end: 3600
+      probability: 0.0167
+    # West-North direction (starts 4.5 seconds later to avoid simultaneous spawn)
+    - route: west_north
+      type: car
+      begin: 4.5
+      end: 3600
+      probability: 0.0167
+    # East-South direction (starts 5.5 seconds later to avoid simultaneous spawn)
+    - route: east_south
+      type: car
+      begin: 5.5
+      end: 3600
+      probability: 0.0767
+traffic_lights:
+  programs:
+    - id: n0
+      program_id: custom
+      offset: 0
+      type: static
+      phases:
+        - duration: 20
+          state: "GGGGrrrrGGGGrrrr"
+        - duration: 4
+          state: "yyyyrrrryyyyrrrr"
+        - duration: 20
+          state: "rrrrGGGGrrrrGGGG"
+        - duration: 4
+          state: "rrrryyyyrrrryyyy"
+

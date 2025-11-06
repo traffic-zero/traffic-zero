@@ -1,0 +1,144 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "SUMO Scenario Configuration Schema",
+  "description": "Schema for validating SUMO traffic scenario YAML files",
+  "type": "object",
+  "required": ["intersection", "traffic", "traffic_lights"],
+  "properties": {
+    "intersection": {
+      "type": "string",
+      "description": "Name of the intersection (e.g., 'simple4')"
+    },
+    "traffic": {
+      "type": "object",
+      "required": ["vehicle_types", "routes"],
+      "properties": {
+        "vehicle_types": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["id"],
+            "properties": {
+              "id": {"type": "string"},
+              "accel": {"type": "number", "minimum": 0},
+              "decel": {"type": "number", "minimum": 0},
+              "sigma": {"type": "number", "minimum": 0, "maximum": 1},
+              "length": {"type": "number", "minimum": 0},
+              "maxSpeed": {"type": "number", "minimum": 0},
+              "color": {"type": "string"},
+              "minGap": {"type": "number", "minimum": 0},
+              "tau": {"type": "number", "minimum": 0},
+              "speedFactor": {"type": "number", "minimum": 0},
+              "speedDev": {"type": "number", "minimum": 0}
+            },
+            "additionalProperties": false
+          }
+        },
+        "routes": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["id", "edges"],
+            "properties": {
+              "id": {"type": "string"},
+              "edges": {
+                "type": "array",
+                "items": {"type": "string"},
+                "minItems": 1
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "vehicles": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["id", "type", "route", "depart"],
+            "properties": {
+              "id": {"type": "string"},
+              "type": {"type": "string"},
+              "route": {"type": "string"},
+              "depart": {"type": "number", "minimum": 0},
+              "departLane": {"type": "string"},
+              "departPos": {"type": "number"},
+              "departSpeed": {"type": "number", "minimum": 0},
+              "arrivalLane": {"type": "string"},
+              "arrivalPos": {"type": "number"},
+              "arrivalSpeed": {"type": "number", "minimum": 0}
+            },
+            "additionalProperties": false
+          }
+        },
+        "flows": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["route", "type"],
+            "properties": {
+              "route": {"type": "string"},
+              "type": {"type": "string"},
+              "begin": {"type": "number", "minimum": 0},
+              "end": {"type": "number", "minimum": 0},
+              "vehsPerHour": {"type": "number", "minimum": 0},
+              "period": {"type": "number", "minimum": 0},
+              "probability": {"type": "number", "minimum": 0, "maximum": 1},
+              "number": {"type": "integer", "minimum": 0},
+              "departLane": {"type": "string"},
+              "departPos": {"type": "number"},
+              "departSpeed": {"type": "number", "minimum": 0},
+              "arrivalLane": {"type": "string"},
+              "arrivalPos": {"type": "number"},
+              "arrivalSpeed": {"type": "number", "minimum": 0},
+              "id": {"type": "string"}
+            },
+            "additionalProperties": false
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "traffic_lights": {
+      "type": "object",
+      "required": ["programs"],
+      "properties": {
+        "programs": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["id", "program_id", "phases"],
+            "properties": {
+              "id": {"type": "string"},
+              "program_id": {"type": "string"},
+              "offset": {"type": "number", "minimum": 0},
+              "type": {
+                "type": "string",
+                "enum": ["static", "actuated"]
+              },
+              "phases": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "required": ["duration", "state"],
+                  "properties": {
+                    "duration": {"type": "number", "minimum": 0},
+                    "state": {"type": "string"},
+                    "minDur": {"type": "number", "minimum": 0},
+                    "maxDur": {"type": "number", "minimum": 0},
+                    "name": {"type": "string"}
+                  },
+                  "additionalProperties": false
+                },
+                "minItems": 1
+              }
+            },
+            "additionalProperties": false
+          }
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}
+

@@ -3,7 +3,7 @@ import subprocess
 import traci
 from .generate_config import generate_sumocfg
 
-def run_interactive(simulation_name: str):
+def run_interactive(simulation_name: str, experiment_name: str = None):
     """
     Run SUMO-GUI for interactive manual control and visual exploration.
     
@@ -15,18 +15,33 @@ def run_interactive(simulation_name: str):
     Args:
         simulation_name (str): Name of simulation from SUMO.md
                               (e.g., "simple4")
+        experiment_name (str, optional): Name of experiment scenario to use.
+                                         If provided, generates routes and tls
+                                         from scenario before running.
     
     Example:
         >>> run_interactive("simple4")
         >>> Starting SUMO-GUI with ./sim/intersections/simple4/simple4.sumocfg
         >>> This will run interactively - you can control the simulation manually
+        
+        >>> run_interactive("simple4", "light_traffic")
+        >>> Loading experiment scenario and generating routes/tls...
+        >>> Starting SUMO-GUI with experiment configuration
     
     Note:
-        Make sure to generate the configuration file first using generate_sumocfg()
-        if it doesn't exist.
+        If experiment_name is provided, routes and tls will be generated from
+        the scenario before running. Otherwise, uses existing XML files.
     """
     base_dir = "./sim/intersections/" + simulation_name
     SUMO_CFG = os.path.join(base_dir, simulation_name + ".sumocfg")
+    
+    # Generate config if it doesn't exist or if experiment is specified
+    if not os.path.exists(SUMO_CFG) or experiment_name is not None:
+        if experiment_name is not None:
+            print(f">>> Generating configuration with experiment: {experiment_name}")
+        else:
+            print(f">>> Generating configuration file...")
+        generate_sumocfg(simulation_name, experiment_name)
     
     # Check if config file exists
     if not os.path.exists(SUMO_CFG):
@@ -41,7 +56,7 @@ def run_interactive(simulation_name: str):
     subprocess.run(sumo_cmd)
 
 
-def run_automated(simulation_name: str):
+def run_automated(simulation_name: str, experiment_name: str = None):
     """
     Run SUMO with programmatic control for automated experiments.
     
@@ -59,6 +74,9 @@ def run_automated(simulation_name: str):
     Args:
         simulation_name (str): Name of simulation from SUMO.md
                               (e.g., "simple4")
+        experiment_name (str, optional): Name of experiment scenario to use.
+                                        If provided, generates routes and tls
+                                        from scenario before running.
     
     Example:
         >>> run_automated("simple4")
@@ -66,11 +84,16 @@ def run_automated(simulation_name: str):
         >>> Network generated at ./sim/intersections/simple4/network.net.xml
         >>> Step 0: TLS junction phase 0
         >>> Step 100: TLS junction phase 2
+        
+        >>> run_automated("simple4", "rush_hour")
+        >>> Loading experiment scenario and generating routes/tls...
+        >>> Running simulation with experiment configuration
     
     Note:
         Requires the simulation files (nodes.nod.xml, edges.edg.xml, routes.rou.xml)
         to exist in the intersection folder. The function will automatically
-        generate the network and configuration files if needed.
+        generate the network and configuration files if needed. If experiment_name
+        is provided, routes and tls will be generated from the scenario.
     """
     base_dir = "./sim/intersections/" + simulation_name
 
@@ -93,7 +116,9 @@ def run_automated(simulation_name: str):
     print(">>> Network generated at", NET_FILE)
 
     print(">>> Generating SUMO configuration file...")
-    generate_sumocfg(simulation_name)
+    if experiment_name is not None:
+        print(f">>> Using experiment scenario: {experiment_name}")
+    generate_sumocfg(simulation_name, experiment_name)
     print(">>> SUMO configuration file generated at", SUMO_CFG)
 
     # 2. Launch SUMO-GUI

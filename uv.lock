@@ -1271,6 +1271,9 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/ac/ba/3c4978b54a73ed19a7d74531be37a8bcc542d917c770e14d372b8daea186/rpds_py-0.27.1-cp312-cp312-musllinux_1_2_aarch64.whl", hash = "sha256:80c60cfb5310677bd67cb1e85a1e8eb52e12529545441b43e6f14d90b878775a", size = 562324, upload-time = "2025-08-27T12:13:22.789Z" },
     { url = "https://files.pythonhosted.org/packages/b5/6c/6943a91768fec16db09a42b08644b960cff540c66aab89b74be6d4a144ba/rpds_py-0.27.1-cp312-cp312-musllinux_1_2_i686.whl", hash = "sha256:7ee6521b9baf06085f62ba9c7a3e5becffbc32480d2f1b351559c001c38ce4c1", size = 593646, upload-time = "2025-08-27T12:13:24.122Z" },
     { url = "https://files.pythonhosted.org/packages/11/73/9d7a8f4be5f4396f011a6bb7a19fe26303a0dac9064462f5651ced2f572f/rpds_py-0.27.1-cp312-cp312-musllinux_1_2_x86_64.whl", hash = "sha256:a512c8263249a9d68cac08b05dd59d2b3f2061d99b322813cbcc14c3c7421998", size = 558137, upload-time = "2025-08-27T12:13:25.557Z" },
+    { url = "https://files.pythonhosted.org/packages/6e/96/6772cbfa0e2485bcceef8071de7821f81aeac8bb45fbfd5542a3e8108165/rpds_py-0.27.1-cp312-cp312-win32.whl", hash = "sha256:819064fa048ba01b6dadc5116f3ac48610435ac9a0058bbde98e569f9e785c39", size = 221343, upload-time = "2025-08-27T12:13:26.967Z" },
+    { url = "https://files.pythonhosted.org/packages/67/b6/c82f0faa9af1c6a64669f73a17ee0eeef25aff30bb9a1c318509efe45d84/rpds_py-0.27.1-cp312-cp312-win_amd64.whl", hash = "sha256:d9199717881f13c32c4046a15f024971a3b78ad4ea029e8da6b86e5aa9cf4594", size = 232497, upload-time = "2025-08-27T12:13:28.326Z" },
+    { url = "https://files.pythonhosted.org/packages/e1/96/2817b44bd2ed11aebacc9251da03689d56109b9aba5e311297b6902136e2/rpds_py-0.27.1-cp312-cp312-win_arm64.whl", hash = "sha256:33aa65b97826a0e885ef6e278fbd934e98cdcfed80b63946025f01e2f5b29502", size = 222790, upload-time = "2025-08-27T12:13:29.71Z" },
 ]
 
 [[package]]
@@ -1481,6 +1484,7 @@ dependencies = [
     { name = "flake8-comprehensions" },
     { name = "flake8-docstrings" },
     { name = "gymnasium" },
+    { name = "jsonschema" },
     { name = "matplotlib" },
     { name = "mpe2" },
     { name = "networkx" },
@@ -1490,6 +1494,7 @@ dependencies = [
     { name = "pettingzoo" },
     { name = "pre-commit" },
     { name = "pygame" },
+    { name = "pyyaml" },
     { name = "ray", extra = ["rllib"], marker = "sys_platform != 'win32'" },
     { name = "scipy" },
     { name = "seaborn" },
@@ -1509,6 +1514,7 @@ requires-dist = [
     { name = "flake8-comprehensions", specifier = ">=3.17.0" },
     { name = "flake8-docstrings", specifier = ">=1.7.0" },
     { name = "gymnasium" },
+    { name = "jsonschema", specifier = ">=4.0" },
     { name = "matplotlib" },
     { name = "mpe2", specifier = ">=0.0.1" },
     { name = "networkx" },
@@ -1518,6 +1524,7 @@ requires-dist = [
     { name = "pettingzoo", specifier = ">=1.25.0" },
     { name = "pre-commit", specifier = ">=4.3.0" },
     { name = "pygame", specifier = ">=2.6.1" },
+    { name = "pyyaml", specifier = ">=6.0" },
     { name = "ray", extras = ["rllib"], marker = "sys_platform != 'win32'" },
     { name = "scipy" },
     { name = "seaborn" },
