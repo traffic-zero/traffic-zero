@@ -25,6 +25,17 @@ Want to see your simulations in beautiful 3D? This guide shows you how to:
 
 **Note**: CARLA is completely optional. Your SUMO simulations work perfectly fine without it!
 
+### 3. [DATA_COLLECTION.md](./DATA_COLLECTION.md) - Data Collection & ML Training
+
+For ML training and data analysis, this guide covers:
+- Comprehensive TraCI data collection
+- Evaluation metrics computation
+- Dynamic traffic light control with action logging
+- CSV export and in-memory data access
+- How to prepare data for reinforcement learning
+
+**Use this guide** when you need to collect simulation data for ML training!
+
 ## 🚀 Quick Start
 
 ```python
@@ -104,10 +115,12 @@ python -m sim.sumo.generate_config simple4
 
 1. **First simulation**: Read [SUMO.md](./SUMO.md)
 2. **3D visualization**: Read [CARLA.md](./CARLA.md)
-3. **Project setup**: See main [README.md](../README.md)
-4. **Code details**: 
+3. **Data collection for ML**: Read [DATA_COLLECTION.md](./DATA_COLLECTION.md)
+4. **Project setup**: See main [README.md](../README.md)
+5. **Code details**: 
    - SUMO runner: `sim/sumo/runner.py`
    - CARLA bridge: `sim/carla/bridge.py`
+   - Data collection: `sim/sumo/data_collector.py`
 
 ## 📖 External Resources
 
@@ -118,4 +131,6 @@ python -m sim.sumo.generate_config simple4
 ---
 
 **Ready to start?** Head over to [SUMO.md](./SUMO.md) and run your first simulation! 🚗💨
+
+**Need to collect data for ML?** Check out [DATA_COLLECTION.md](./DATA_COLLECTION.md) for comprehensive data collection and metrics! 📊
 
