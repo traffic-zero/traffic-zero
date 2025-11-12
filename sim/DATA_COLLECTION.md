@@ -190,45 +190,25 @@ The `result['data']` dictionary contains:
 - `vehicles`: Vehicle positions, speeds, waiting times, emissions, fuel consumption
 - `traffic_lights`: Traffic light phases, programs, states
 - `lanes`: Lane occupancy, density, queue lengths, speeds
-- `junctions`: Junction waiting times
+- `junctions`: Junction positions
 - `edges`: Edge speeds, travel times, occupancy
 - `simulation`: Simulation state (time, vehicle counts, departed/arrived)
 
-### Data Columns
+### CSV Data Files
 
-#### Vehicle Data (`vehicles`)
+When `output_dir` is specified, all data is exported to CSV files. For detailed information about CSV file structure, column descriptions, and ML usage, see **[SUMO_DATA.md](SUMO_DATA.md)**.
 
-- `step`, `time`: Simulation step and time
-- `vehicle_id`: Vehicle identifier
-- `position_x`, `position_y`: Vehicle position
-- `speed`, `acceleration`: Vehicle speed and acceleration
-- `angle`: Vehicle heading angle
-- `waiting_time`: Time vehicle has been waiting
-- `lane_id`, `lane_position`: Current lane and position in lane
-- `route`: Vehicle route (comma-separated edges)
-- `co2_emission`, `co_emission`, `nox_emission`: Emissions
-- `fuel_consumption`: Fuel consumption
+The following CSV files are generated:
+- `vehicle_data.csv` - Individual vehicle states and properties
+- `traffic_light_data.csv` - Traffic light states and phases
+- `traffic_light_actions.csv` - Log of all traffic light control actions
+- `lane_data.csv` - Lane-level metrics and occupancy
+- `junction_data.csv` - Junction positions
+- `edge_data.csv` - Edge-level metrics and travel times
+- `simulation_data.csv` - Overall simulation state
+- `metrics_summary.csv` - Aggregated evaluation metrics
 
-#### Traffic Light Data (`traffic_lights`)
-
-- `step`, `time`: Simulation step and time
-- `tls_id`: Traffic light identifier
-- `phase`: Current phase number
-- `phase_duration`: Duration of current phase
-- `program`: Current program name
-- `state`: Traffic light state string (e.g., "GGGrrrGGGrrr")
-- `controlled_lanes`: Comma-separated list of controlled lanes
-
-#### Lane Data (`lanes`)
-
-- `step`, `time`: Simulation step and time
-- `lane_id`: Lane identifier
-- `occupancy`: Lane occupancy (0-100%)
-- `density`: Vehicle density (vehicles/km)
-- `vehicle_count`: Number of vehicles in lane
-- `mean_speed`: Mean speed of vehicles in lane
-- `waiting_time`: Total waiting time in lane
-- `queue_length`: Number of halted vehicles
+All files share `step` and `time` columns for temporal alignment. See [SUMO_DATA.md](SUMO_DATA.md) for complete column descriptions and ML usage examples.
 
 ## Traffic Light Control
 
@@ -389,14 +369,7 @@ result = run_automated("simple4", output_dir="./output")
 action_log = result['tls_controller'].get_action_log()
 print(action_log)
 
-# Action log columns:
-# - step: Simulation step when action occurred
-# - time: Simulation time when action occurred
-# - tls_id: Traffic light identifier
-# - action_type: Type of action (phase_change, program_change, duration_change)
-# - old_value: Previous value
-# - new_value: New value
-# - controlled_lanes: Lanes controlled by this traffic light
+# Action log columns: See SUMO_DATA.md for detailed column descriptions
 ```
 
 The action log is also automatically exported to `traffic_light_actions.csv` if `output_dir` is specified.
@@ -405,55 +378,19 @@ The action log is also automatically exported to `traffic_light_actions.csv` if 
 
 ### Available Metrics
 
-The metrics calculator computes the following metrics:
+The metrics calculator computes aggregated evaluation metrics that are exported to `metrics_summary.csv`. For a complete list of all metrics with descriptions and ML usage, see **[SUMO_DATA.md](SUMO_DATA.md)**.
 
-#### Primary Metrics
+**Metric Categories:**
+- **Primary Metrics**: Waiting times, travel times, throughput
+- **Queue Metrics**: Queue lengths across lanes
+- **Speed Metrics**: Vehicle, lane, and edge speeds
+- **Emissions Metrics**: CO2, CO, NOx emissions
+- **Fuel Consumption**: Total and average fuel consumption
+- **Lane Metrics**: Lane occupancy, density, waiting times
+- **Edge Metrics**: Edge occupancy
+- **Simulation Metrics**: Duration, vehicle counts, timing
 
-- `average_waiting_time`: Average waiting time across all vehicles (seconds)
-- `max_waiting_time`: Maximum waiting time of any vehicle (seconds)
-- `total_waiting_time`: Sum of all waiting times (seconds)
-- `average_travel_time`: Average travel time across edges (seconds)
-- `throughput`: Total number of vehicles that arrived (vehicles)
-
-#### Queue Metrics
-
-- `max_queue_length`: Maximum queue length across all lanes (vehicles)
-- `average_queue_length`: Average queue length across all lanes (vehicles)
-- `total_queue_length`: Sum of all queue lengths (vehicles)
-
-#### Speed Metrics
-
-- `average_speed`: Average vehicle speed (m/s)
-- `max_speed`: Maximum vehicle speed (m/s)
-- `min_speed`: Minimum vehicle speed (m/s)
-- `average_lane_speed`: Average lane speed (m/s)
-- `average_edge_speed`: Average edge speed (m/s)
-
-#### Emissions Metrics
-
-- `total_co2_emission`: Total CO2 emissions (mg)
-- `average_co2_emission`: Average CO2 emissions per vehicle (mg)
-- `total_co_emission`: Total CO emissions (mg)
-- `total_nox_emission`: Total NOx emissions (mg)
-
-#### Fuel Consumption
-
-- `total_fuel_consumption`: Total fuel consumed (ml)
-- `average_fuel_consumption`: Average fuel consumption per vehicle (ml)
-
-#### Lane Metrics
-
-- `max_lane_occupancy`: Maximum lane occupancy (%)
-- `average_lane_occupancy`: Average lane occupancy (%)
-- `max_lane_density`: Maximum lane density (vehicles/km)
-- `average_lane_density`: Average lane density (vehicles/km)
-
-#### Simulation Metrics
-
-- `simulation_duration`: Total simulation duration (seconds)
-- `unique_vehicles`: Number of unique vehicles in simulation
-- `average_vehicle_count`: Average number of vehicles present
-- `max_vehicle_count`: Maximum number of vehicles present
+All metrics are computed at the end of simulation and exported to `metrics_summary.csv`. See [SUMO_DATA.md](SUMO_DATA.md) for detailed metric descriptions and usage examples.
 
 ### Accessing Metrics
 
@@ -629,15 +566,14 @@ For very long simulations with `collect_interval=1`, data can become large. Cons
 
 ## Next Steps
 
-For ML training:
+For ML training, see **[SUMO_DATA.md](SUMO_DATA.md)** for comprehensive guidance on:
+1. CSV file structure and column descriptions
+2. State representation examples
+3. Reward computation strategies
+4. Data joining and temporal alignment
+5. Complete ML data pipeline examples
 
-1. Use collected data to create state representations
-2. Use traffic light action log as action history
-3. Use metrics to compute rewards
-4. Combine vehicle, lane, and traffic light data for observations
-
-Example ML data preparation:
-
+Quick start example:
 ```python
 result = run_automated("simple4", output_dir="./training_data")
 
@@ -652,6 +588,8 @@ actions = result['tls_controller'].get_action_log()
 # Prepare rewards: based on metrics
 rewards = -result['metrics']['average_waiting_time']  # Negative waiting time as reward
 ```
+
+For detailed ML usage examples, column descriptions, and data pipeline guidance, see [SUMO_DATA.md](SUMO_DATA.md).
 
 ## API Reference
 
