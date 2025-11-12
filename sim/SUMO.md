@@ -43,7 +43,7 @@ This runs the simulation with programmatic control for 30 minutes, including ada
 
 1. `simple4`
 
-![](./intersections/simple4/preview.png)
+![Simple intersection](./intersections/simple4/preview.png)
 
 A 4-way intersection with fixed traffic lights.
 

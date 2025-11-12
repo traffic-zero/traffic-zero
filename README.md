@@ -1,5 +1,6 @@
 
 # 🚦 Traffic Zero
+
 Adaptive multi-agent traffic lights system
 
 [![Python](https://img.shields.io/badge/python-3.13-blue)](https://www.python.org/)
@@ -21,18 +22,21 @@ This repository implements a **Multi-Agent System (MAS) for adaptive traffic lig
 ## Getting Started
 
 ### 1. Clone the Repository
+
 ```bash
 git clone git@github.com:traffic-zero/traffic-zero.git
 cd traffic-zero
 ```
 
 ### 2. Set Up a Virtual Environment
+
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate  # On Windows use `.\.venv\Scripts\activate`
 ```
 
 ### 3. Install Dependencies
+
 ```bash
 pip install --upgrade pip
 pip install uv
@@ -41,26 +45,30 @@ pre-commit install # sets up pre-commit hooks for linting and formatting
 ```
 
 ### 4. Install SUMO
+
 Follow the instructions on the [SUMO website](https://sumo.dlr.de/docs/Installing/index.html) to install SUMO on your system.
 
 ### 5. Run a Simulation
+
 ```bash
 python run_simulation.py --config configs/toy_grid.yaml
 ```
 
 ### 6. Generate Traffic Data
+
 ```bash
 python data/generate_routes.py --config configs/traffic_data.yaml
 ```
 
 ### 7. Train an RL Agent
+
 ```bash
 python agents/train_agent.py --config configs/rl_agent.yaml
 ```
 
 ## Repository Structure
 
-```
+```plaintext
 adaptive-traffic/
 ├── sim/                # SUMO networks, configs, route generators
 ├── agents/             # Baseline & RL controllers
@@ -99,9 +107,11 @@ adaptive-traffic/
 Refer to [`CONTRIBUTING.md`](CONTRIBUTING.md) for detailed guidelines.
 
 ## License
+
 This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
 
 ## Resources & References
+
 - [SUMO Documentation](https://sumo.dlr.de/docs/index.html)
 - [TraCI API](https://sumo.dlr.de/docs/TraCI.html)
 - [NGSIM Dataset](https://ops.fhwa.dot.gov/trafficanalysistools/ngsim.htm)
@@ -111,5 +121,5 @@ This project is licensed under the MIT License. See the [LICENSE](LICENSE) file 
 - [RLlib](https://docs.ray.io/en/latest/rllib.html)
 - [OpenStreetMap](https://www.openstreetmap.org/)
 - Multi-Agent RL Papers (traffic control):
-    - [MA-PPO Traffic Signal Control](https://arxiv.org/abs/2503.02189)
-    - [Cooperative MARL for Traffic Lights](https://www.mdpi.com/2071-1050/15/4/3479)
+  - [MA-PPO Traffic Signal Control](https://arxiv.org/abs/2503.02189)
+  - [Cooperative MARL for Traffic Lights](https://www.mdpi.com/2071-1050/15/4/3479)

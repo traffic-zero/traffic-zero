@@ -9,6 +9,7 @@ Read these guides in order to get started:
 ### 1. [SUMO.md](./SUMO.md) - **Start Here!** ⭐
 
 Your first stop for running traffic simulations. This guide covers:
+
 - **Interactive Mode** - Manual control using SUMO-GUI (perfect for learning)
 - **Automated Mode** - Programmatic control for experiments and AI agents
 - Available simulation scenarios
@@ -19,6 +20,7 @@ Your first stop for running traffic simulations. This guide covers:
 ### 2. [CARLA.md](./CARLA.md) - Optional 3D Visualization
 
 Want to see your simulations in beautiful 3D? This guide shows you how to:
+
 - Install and setup CARLA simulator
 - Run SUMO simulations in CARLA's 3D environment
 - Get realistic visualization of traffic scenarios
@@ -28,6 +30,7 @@ Want to see your simulations in beautiful 3D? This guide shows you how to:
 ### 3. [DATA_COLLECTION.md](./DATA_COLLECTION.md) - Data Collection & ML Training
 
 For ML training and data analysis, this guide covers:
+
 - Comprehensive TraCI data collection
 - Evaluation metrics computation
 - Dynamic traffic light control with action logging
@@ -53,7 +56,7 @@ run_carla("simple4", duration=120)
 
 ## 📂 Folder Structure
 
-```
+```plaintext
 sim/
 ├── README.md           # This file - documentation overview
 ├── SUMO.md            # SUMO simulation guide (start here!)
@@ -117,7 +120,7 @@ python -m sim.sumo.generate_config simple4
 2. **3D visualization**: Read [CARLA.md](./CARLA.md)
 3. **Data collection for ML**: Read [DATA_COLLECTION.md](./DATA_COLLECTION.md)
 4. **Project setup**: See main [README.md](../README.md)
-5. **Code details**: 
+5. **Code details**:
    - SUMO runner: `sim/sumo/runner.py`
    - CARLA bridge: `sim/carla/bridge.py`
    - Data collection: `sim/sumo/data_collector.py`
@@ -133,4 +136,3 @@ python -m sim.sumo.generate_config simple4
 **Ready to start?** Head over to [SUMO.md](./SUMO.md) and run your first simulation! 🚗💨
 
 **Need to collect data for ML?** Check out [DATA_COLLECTION.md](./DATA_COLLECTION.md) for comprehensive data collection and metrics! 📊
-
