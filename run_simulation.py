@@ -1,15 +1,16 @@
 from argparse import ArgumentParser
 
-from sim import run_automated
+from sim import run_automated, run_interactive
 
 
-def generate_dataset():
+def generate_dataset(experiment_name: str):
+    # Basic data collection for light_traffic_random scenario
     # Collects all TraCI data and exports to CSV files
     result = run_automated(
         simulation_name="simple4",
-        experiment_name="light_traffic_random",
+        experiment_name=experiment_name,
         # collect_interval=10,  # Collect data every 10th step
-        output_dir="./data/light_traffic_random",
+        output_dir=f"./data/{experiment_name}",
         enable_data_collection=True,
         max_steps=1000,  # Run for 1000 steps (adjust as needed)
     )
@@ -37,23 +38,48 @@ def generate_dataset():
         action_log = result["tls_controller"].get_action_log()
         print(f"\nTraffic light actions: {len(action_log)}")
 
-        print("\n=== All data exported to: ./data/light_traffic_random/ ===")
+        print(f"\n=== All data exported to: ./data/{experiment_name}/ ===")
 
 
 def main():
     parser = ArgumentParser(description="Run SUMO scenarios in CARLA")
     parser.add_argument(
         "--generate-dataset",
-        action="store_true",
-        help="Trigger dataset generation",
+        type=str,
+        help="Experiment name",
     )
 
     args = parser.parse_args()
     if args.generate_dataset:
         print("Generating dataset...")
-        generate_dataset()
-    else:
-        print("Use --generate-dataset to generate datasets")
+        generate_dataset(args.generate_dataset)
+
+    # Call the runner for a specific simulation
+
+    # Use run_interactive for manual control
+    # and visual exploration (recommended)
+
+    # Basic usage with default XML files:
+    # run_interactive("simple4")
+
+    # Use with experiment scenario (generates routes/tls from YAML):
+    # run_interactive("simple4", experiment_name="light_traffic")
+    # run_interactive("simple4", experiment_name="light_traffic_random")
+    run_interactive("simple4", experiment_name="rush_hour")
+
+    # Use run_automated for programmatic control
+    # and experiments (runs for 30 minutes)
+
+    # Basic usage:
+    # run_automated("simple4")
+
+    # Use with experiment scenario:
+    # run_automated("simple4", experiment_name="light_traffic")
+    # run_automated("simple4", experiment_name="rush_hour")
+
+    # Use run_carla for CARLA co-simulation
+    # run_carla("simple4")
+
 
 if __name__ == "__main__":
     main()
