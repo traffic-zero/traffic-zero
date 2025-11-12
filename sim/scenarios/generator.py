@@ -71,19 +71,30 @@ def generate_routes_xml(scenario: Scenario, output_path: Path) -> None:
 
     # Flows (statistical)
     if scenario.traffic.flows:
+        # Track all used flow IDs to ensure uniqueness
+        used_flow_ids = set()
         flow_counter = 0
+        
         for flow in scenario.traffic.flows:
             flow_elem = ET.SubElement(root, "flow")
             
             # SUMO requires unique IDs for flows, especially when multiple flows
-            # use the same route. Generate ID if not provided.
-            if flow.id is not None:
-                flow_elem.set("id", flow.id)
+            # use the same route. Generate ID if not provided or if provided ID conflicts.
+            if flow.id is not None and flow.id not in used_flow_ids:
+                # Use provided ID if it's unique
+                flow_id = flow.id
+                flow_elem.set("id", flow_id)
+                used_flow_ids.add(flow_id)
             else:
                 # Auto-generate unique ID: flow_<route>_<counter>
-                # Only increment counter when auto-generating IDs to ensure uniqueness
-                flow_id = f"flow_{flow.route}_{flow_counter}"
+                # Keep generating until we find a unique ID
+                while True:
+                    flow_id = f"flow_{flow.route}_{flow_counter}"
+                    if flow_id not in used_flow_ids:
+                        break
+                    flow_counter += 1
                 flow_elem.set("id", flow_id)
+                used_flow_ids.add(flow_id)
                 flow_counter += 1
             
             flow_elem.set("route", flow.route)

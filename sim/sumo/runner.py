@@ -197,6 +197,11 @@ def run_automated(
         step = 0
         print(f">>> Starting simulation (max {max_steps} steps)...")
         
+        # Progress reporting interval (steps)
+        # TODO: Move to configuration file for better maintainability
+        PROGRESS_REPORT_INTERVAL = 100
+        METRICS_REPORT_INTERVAL = 1000  # Report metrics every N steps
+        
         while step < max_steps:
             traci.simulationStep()
             
@@ -207,13 +212,12 @@ def run_automated(
             if enable_data_collection and data_collector:
                 data_collector.collect_step(step)
             
-            # Print progress every 100 steps
-            if step % 100 == 0:
+            if step % PROGRESS_REPORT_INTERVAL == 0:
                 phase = traci.trafficlight.getPhase(tls_id)
                 print(f">>> Step {step}: TLS {tls_id} phase {phase}")
                 
                 # Print metrics summary periodically
-                if enable_data_collection and data_collector and step > 0 and step % 1000 == 0:
+                if enable_data_collection and data_collector and step > 0 and step % METRICS_REPORT_INTERVAL == 0:
                     dfs = data_collector.get_dataframes()
                     if not dfs['vehicles'].empty:
                         metrics = metrics_calculator.calculate_metrics(
@@ -227,18 +231,26 @@ def run_automated(
 
             # Example adaptive control: check East approach
             # This demonstrates how to use the TLS controller
+            # NOTE: This is example code specific to the 'simple4' intersection layout.
+            # The lane ID 'eE_0' is hardcoded for demonstration purposes.
+            # For production use, lane IDs should be dynamically determined from the network
+            # or made configurable via parameters/config files.
             QUEUE_LENGTH_THRESHOLD = 3  # Threshold for triggering early phase switch
+            EXAMPLE_LANE_ID = "eE_0"  # Example lane ID for simple4 intersection
             if step > 0:  # Skip first step
                 phase = traci.trafficlight.getPhase(tls_id)
                 if phase == 0:
-                    # Update lane id to match your network naming
+                    # Check queue length on example lane
+                    # In production, this should iterate over all controlled lanes
+                    # or use a configuration file to specify which lanes to monitor
                     try:
-                        q_len_east = traci.lane.getLastStepVehicleNumber("eE_0")
+                        q_len_east = traci.lane.getLastStepVehicleNumber(EXAMPLE_LANE_ID)
                         if q_len_east > QUEUE_LENGTH_THRESHOLD:
                             print(f">>> Step {step}: Jam east: switching early")
                             tls_controller.set_phase(tls_id, 2)
                     except traci.TraCIException:
-                        pass  # skip if lane id not found
+                        # Lane ID not found - skip adaptive control for this step
+                        pass
             
             step += 1
 

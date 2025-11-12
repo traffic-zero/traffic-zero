@@ -9,7 +9,6 @@ import os
 import sys
 import time
 import argparse
-from typing import Optional
 import random
 
 # Add CARLA to Python path if CARLA_ROOT is set
@@ -228,7 +227,8 @@ class CarlaSumoSync:
                     try:
                         self.world = self.client.load_world('Town01')
                         print("✓ Loaded Town01")
-                    except:
+                    except Exception:
+                        # Map loading failed - fall back to current map
                         print("⚠ Failed to load Town01, using current map")
                         self.world = self.client.get_world()
             else:
