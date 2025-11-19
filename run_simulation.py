@@ -4,7 +4,6 @@ from sim import run_automated
 
 
 def generate_dataset():
-    # Basic data collection for light_traffic_random scenario
     # Collects all TraCI data and exports to CSV files
     result = run_automated(
         simulation_name="simple4",
@@ -45,42 +44,16 @@ def main():
     parser = ArgumentParser(description="Run SUMO scenarios in CARLA")
     parser.add_argument(
         "--generate-dataset",
-        type=bool,
-        default=False,
-        help="A boolean flag to trigger dataset generation",
+        action="store_true",
+        help="Trigger dataset generation",
     )
 
     args = parser.parse_args()
     if args.generate_dataset:
         print("Generating dataset...")
         generate_dataset()
-
-    # Call the runner for a specific simulation
-
-    # Use run_interactive for manual control
-    # and visual exploration (recommended)
-
-    # Basic usage with default XML files:
-    # run_interactive("simple4")
-
-    # Use with experiment scenario (generates routes/tls from YAML):
-    # run_interactive("simple4", experiment_name="light_traffic")
-    # run_interactive("simple4", experiment_name="light_traffic_random")
-    # run_interactive("simple4", experiment_name="rush_hour")
-
-    # Use run_automated for programmatic control
-    # and experiments (runs for 30 minutes)
-
-    # Basic usage:
-    # run_automated("simple4")
-
-    # Use with experiment scenario:
-    # run_automated("simple4", experiment_name="light_traffic")
-    # run_automated("simple4", experiment_name="rush_hour")
-
-    # Use run_carla for CARLA co-simulation
-    # run_carla("simple4")
-
+    else:
+        print("Use --generate-dataset to generate datasets")
 
 if __name__ == "__main__":
     main()

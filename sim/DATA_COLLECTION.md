@@ -210,6 +210,61 @@ The following CSV files are generated:
 
 All files share `step` and `time` columns for temporal alignment. See [SUMO_DATA.md](SUMO_DATA.md) for complete column descriptions and ML usage examples.
 
+### Lane Data Format and Filtering
+
+The `lane_data.csv` file contains lane-level metrics for traffic analysis. By default, only **main entry/exit lanes** are collected, excluding SUMO internal junction lanes.
+
+**For simple4 intersection, the following 8 lanes are collected:**
+- `eE_0`, `eE_out_0` - East entry and exit lanes
+- `eN_0`, `eN_out_0` - North entry and exit lanes
+- `eS_0`, `eS_out_0` - South entry and exit lanes
+- `eW_0`, `eW_out_0` - West entry and exit lanes
+
+**Junction lanes (starting with `:n*`) are automatically excluded** as they are SUMO internal lanes that are mostly empty and don't represent actual traffic flow.
+
+**Data Format:**
+- **Occupancy**: Percentage format (0-100), converted from SUMO's fraction format (0-1)
+- **Density**: Vehicles per kilometer
+- **Vehicle count**: Number of vehicles on the lane at the time step
+- **Mean speed**: Average speed of vehicles on the lane (m/s)
+- **Waiting time**: Total waiting time on the lane (seconds)
+- **Queue length**: Number of halting vehicles on the lane
+
+**Filtering Options:**
+
+You can configure lane filtering during data collection in `sim/sumo/runner.py`:
+
+```python
+data_collector = DataCollector(
+    collect_interval=collect_interval,
+    output_dir=output_dir,
+    exclude_empty_lanes=False,  # Set to True to skip lanes with zero occupancy/density
+    lane_filter='main_roads',    # Options: None, 'entry_exit', 'junction', 'main_roads'
+)
+```
+
+**Filter options:**
+- `lane_filter='main_roads'`: Only collect the 8 main entry/exit lanes (default for simple4)
+- `lane_filter='entry_exit'`: Collect all lanes starting with 'e' (entry/exit lanes)
+- `lane_filter='junction'`: Collect only junction lanes (starting with ':n')
+- `lane_filter=None`: Collect all lanes (not recommended - includes SUMO overhead)
+
+**Filtering Existing CSV Files:**
+
+If you have existing `lane_data.csv` files with all lanes, you can filter them using:
+
+```bash
+python scripts/filter_to_main_lanes.py data/rush_hour_random/lane_data.csv
+```
+
+This script:
+- Keeps only the 8 main lanes for simple4
+- Removes all junction lanes and SUMO internal lanes
+- Creates a backup of the original file
+- Reduces file size by ~78% (from 36 lanes to 8 lanes)
+
+**Note:** Early simulation steps may show zeros for occupancy and density - this is expected if vehicles haven't spawned yet. The data collection system correctly captures all values once vehicles appear.
+
 ## Traffic Light Control
 
 ### Using the TLS Controller

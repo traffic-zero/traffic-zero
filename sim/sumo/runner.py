@@ -6,6 +6,7 @@ from .generate_config import generate_sumocfg
 from .data_collector import DataCollector
 from .metrics import MetricsCalculator
 from .tls_controller import TLSController
+from .dataset import RealismMode
 
 def run_interactive(simulation_name: str, experiment_name: str = None):
     """
@@ -60,6 +61,126 @@ def run_interactive(simulation_name: str, experiment_name: str = None):
     subprocess.run(sumo_cmd)
 
 
+def _run_simulation_loop(
+    max_steps: int,
+    tls_id: str,
+    tls_controller: TLSController,
+    data_collector: Optional[DataCollector],
+    metrics_calculator: Optional[MetricsCalculator],
+    enable_data_collection: bool,
+) -> None:
+    """Run the main simulation loop with traffic light control and data collection."""
+    PROGRESS_REPORT_INTERVAL = 100
+    METRICS_REPORT_INTERVAL = 1000
+    QUEUE_LENGTH_THRESHOLD = 3
+    EXAMPLE_LANE_ID = "eE_0"
+    
+    step = 0
+    print(f">>> Starting simulation (max {max_steps} steps)...")
+    
+    while step < max_steps:
+        traci.simulationStep()
+        tls_controller.set_step(step)
+        
+        if enable_data_collection and data_collector:
+            data_collector.collect_step(step)
+        
+        if step % PROGRESS_REPORT_INTERVAL == 0:
+            phase = traci.trafficlight.getPhase(tls_id)
+            print(f">>> Step {step}: TLS {tls_id} phase {phase}")
+            
+            should_report_metrics = (
+                enable_data_collection
+                and data_collector
+                and metrics_calculator
+                and step > 0
+                and step % METRICS_REPORT_INTERVAL == 0
+            )
+            if should_report_metrics:
+                dfs = data_collector.get_dataframes()
+                if not dfs['vehicles'].empty:
+                    metrics = metrics_calculator.calculate_metrics(
+                        dfs['vehicles'],
+                        dfs['lanes'],
+                        dfs['edges'],
+                        dfs['simulation'],
+                    )
+                    print(f">>>   Average waiting time: {metrics.get('average_waiting_time', 0):.2f}s")
+                    print(f">>>   Throughput: {metrics.get('throughput', 0):.0f} vehicles")
+        
+        _apply_adaptive_control(step, tls_id, tls_controller, QUEUE_LENGTH_THRESHOLD, EXAMPLE_LANE_ID)
+        step += 1
+
+
+def _apply_adaptive_control(
+    step: int,
+    tls_id: str,
+    tls_controller: TLSController,
+    queue_threshold: int,
+    example_lane_id: str,
+) -> None:
+    """Apply example adaptive traffic light control."""
+    if step == 0:
+        return
+    
+    phase = traci.trafficlight.getPhase(tls_id)
+    if phase != 0:
+        return
+    
+    # Example adaptive control: check East approach
+    # NOTE: This is example code specific to the 'simple4' intersection layout.
+    # The lane ID 'eE_0' is hardcoded for demonstration purposes.
+    # For production use, lane IDs should be dynamically determined from the network
+    # or made configurable via parameters/config files.
+    try:
+        q_len_east = traci.lane.getLastStepVehicleNumber(example_lane_id)
+        if q_len_east > queue_threshold:
+            print(f">>> Step {step}: Jam east: switching early")
+            tls_controller.set_phase(tls_id, 2)
+    except traci.TraCIException:
+        # Lane ID not found - skip adaptive control for this step
+        pass
+
+
+def _collect_final_results(
+    data_collector: Optional[DataCollector],
+    metrics_calculator: Optional[MetricsCalculator],
+    tls_controller: TLSController,
+    enable_data_collection: bool,
+) -> Dict[str, Any]:
+    """Collect and export final simulation results."""
+    result = {
+        'data': {},
+        'metrics': {},
+        'tls_controller': tls_controller,
+    }
+    
+    if not enable_data_collection or not data_collector:
+        tls_controller.export_action_log()
+        return result
+    
+    print(">>> Computing final metrics...")
+    dfs = data_collector.get_dataframes()
+    result['data'] = dfs
+    
+    if metrics_calculator:
+        metrics = metrics_calculator.calculate_metrics(
+            dfs['vehicles'],
+            dfs['lanes'],
+            dfs['edges'],
+            dfs['simulation'],
+        )
+        result['metrics'] = metrics
+        metrics_calculator.print_metrics(metrics)
+        metrics_calculator.export_metrics(metrics)
+    
+    print(">>> Exporting data to CSV...")
+    data_collector.export_to_csv()
+    tls_controller.export_action_log()
+    
+    return result
+
+
 def run_automated(
     simulation_name: str,
     experiment_name: Optional[str] = None,
@@ -68,6 +189,7 @@ def run_automated(
     enable_data_collection: bool = True,
     max_steps: int = 36000,
     gui: bool = False,
+    realism_mode: Optional[RealismMode] = None,
 ) -> Dict[str, Any]:
     """
     Run SUMO with programmatic control for automated experiments.
@@ -96,6 +218,8 @@ def run_automated(
         enable_data_collection (bool): Enable data collection (default: True)
         max_steps (int): Maximum simulation steps (default: 36000 = 30 minutes)
         gui (bool): Show SUMO-GUI window (default: False, runs headless with 'sumo')
+        realism_mode (RealismMode, optional): RealismMode instance for sensor noise.
+                                             If None, uses RealismMode(RealismLevel.NONE)
     
     Returns:
         Dictionary containing:
@@ -164,132 +288,55 @@ def run_automated(
     # 3. Initialize data collection, metrics, and TLS controller
     data_collector = None
     metrics_calculator = None
-    tls_controller = None
     
     if enable_data_collection:
         print(f">>> Initializing data collection (interval: {collect_interval} steps)")
+        # Option to exclude empty lanes and filter by lane type
+        # Set exclude_empty_lanes=True to skip lanes with zero occupancy/density
+        # Set lane_filter='entry_exit' to only collect entry/exit lanes (e*)
+        # Set lane_filter='main_roads' to only collect main roads (eN_0, eS_0, eW_0, eE_0, etc.)
         data_collector = DataCollector(
             collect_interval=collect_interval,
             output_dir=output_dir,
+            exclude_empty_lanes=False,  # Set to True to skip empty lanes
+            lane_filter=None,  # Options: None, 'entry_exit', 'junction', 'main_roads'
+            realism_mode=realism_mode,
         )
         metrics_calculator = MetricsCalculator(output_dir=output_dir)
     
     tls_controller = TLSController(output_dir=output_dir)
     print(">>> Traffic light controller initialized")
 
-    # 4. Traffic light control
+    # 4. Traffic light control and simulation loop
     tls_ids = traci.trafficlight.getIDList()
     print(">>> TLS detected:", tls_ids)
 
-    if tls_ids:
-        # Use first TL automatically
-        tls_id = tls_ids[0]
-        print(">>> Using traffic light:", tls_id)
+    if not tls_ids:
+        print(">>> Simulation complete (no traffic lights found).")
+        traci.close()
+        return _collect_final_results(data_collector, metrics_calculator, tls_controller, enable_data_collection)
 
-        # Try loading your custom program "custom"
-        try:
-            tls_controller.set_step(0)
-            tls_controller.set_program(tls_id, "custom")
-        except Exception as e:
-            print(f">>> Warning: Could not set program 'custom' - {e}")
+    # Use first TL automatically
+    tls_id = tls_ids[0]
+    print(">>> Using traffic light:", tls_id)
 
-        # Run simulation loop
-        step = 0
-        print(f">>> Starting simulation (max {max_steps} steps)...")
-        
-        # Progress reporting interval (steps)
-        # TODO: Move to configuration file for better maintainability
-        PROGRESS_REPORT_INTERVAL = 100
-        METRICS_REPORT_INTERVAL = 1000  # Report metrics every N steps
-        
-        while step < max_steps:
-            traci.simulationStep()
-            
-            # Update TLS controller step
-            tls_controller.set_step(step)
-            
-            # Collect data at specified intervals
-            if enable_data_collection and data_collector:
-                data_collector.collect_step(step)
-            
-            if step % PROGRESS_REPORT_INTERVAL == 0:
-                phase = traci.trafficlight.getPhase(tls_id)
-                print(f">>> Step {step}: TLS {tls_id} phase {phase}")
-                
-                # Print metrics summary periodically
-                if enable_data_collection and data_collector and step > 0 and step % METRICS_REPORT_INTERVAL == 0:
-                    dfs = data_collector.get_dataframes()
-                    if not dfs['vehicles'].empty:
-                        metrics = metrics_calculator.calculate_metrics(
-                            dfs['vehicles'],
-                            dfs['lanes'],
-                            dfs['edges'],
-                            dfs['simulation'],
-                        )
-                        print(f">>>   Average waiting time: {metrics.get('average_waiting_time', 0):.2f}s")
-                        print(f">>>   Throughput: {metrics.get('throughput', 0):.0f} vehicles")
+    # Try loading custom program "custom"
+    try:
+        tls_controller.set_step(0)
+        tls_controller.set_program(tls_id, "custom")
+    except Exception as e:
+        print(f">>> Warning: Could not set program 'custom' - {e}")
 
-            # Example adaptive control: check East approach
-            # This demonstrates how to use the TLS controller
-            # NOTE: This is example code specific to the 'simple4' intersection layout.
-            # The lane ID 'eE_0' is hardcoded for demonstration purposes.
-            # For production use, lane IDs should be dynamically determined from the network
-            # or made configurable via parameters/config files.
-            QUEUE_LENGTH_THRESHOLD = 3  # Threshold for triggering early phase switch
-            EXAMPLE_LANE_ID = "eE_0"  # Example lane ID for simple4 intersection
-            if step > 0:  # Skip first step
-                phase = traci.trafficlight.getPhase(tls_id)
-                if phase == 0:
-                    # Check queue length on example lane
-                    # In production, this should iterate over all controlled lanes
-                    # or use a configuration file to specify which lanes to monitor
-                    try:
-                        q_len_east = traci.lane.getLastStepVehicleNumber(EXAMPLE_LANE_ID)
-                        if q_len_east > QUEUE_LENGTH_THRESHOLD:
-                            print(f">>> Step {step}: Jam east: switching early")
-                            tls_controller.set_phase(tls_id, 2)
-                    except traci.TraCIException:
-                        # Lane ID not found - skip adaptive control for this step
-                        pass
-            
-            step += 1
+    _run_simulation_loop(
+        max_steps=max_steps,
+        tls_id=tls_id,
+        tls_controller=tls_controller,
+        data_collector=data_collector,
+        metrics_calculator=metrics_calculator,
+        enable_data_collection=enable_data_collection,
+    )
 
     print(">>> Simulation complete.")
-    
-    # 5. Final data collection and metrics computation
-    result = {
-        'data': {},
-        'metrics': {},
-        'tls_controller': tls_controller,
-    }
-    
-    if enable_data_collection and data_collector:
-        print(">>> Computing final metrics...")
-        dfs = data_collector.get_dataframes()
-        result['data'] = dfs
-        
-        # Calculate final metrics
-        if metrics_calculator:
-            metrics = metrics_calculator.calculate_metrics(
-                dfs['vehicles'],
-                dfs['lanes'],
-                dfs['edges'],
-                dfs['simulation'],
-            )
-            result['metrics'] = metrics
-            
-            # Print and export metrics
-            metrics_calculator.print_metrics(metrics)
-            metrics_calculator.export_metrics(metrics)
-        
-        # Export all data to CSV
-        print(">>> Exporting data to CSV...")
-        data_collector.export_to_csv()
-    
-    # Export TLS action log
-    if tls_controller:
-        tls_controller.export_action_log()
-    
     traci.close()
     
-    return result
+    return _collect_final_results(data_collector, metrics_calculator, tls_controller, enable_data_collection)
