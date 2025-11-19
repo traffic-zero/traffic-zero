@@ -124,7 +124,7 @@ Realism levels:
     
     # Run simulation with realism mode
     try:
-        result = run_automated(
+        run_automated(
             simulation_name=args.simulation_name,
             experiment_name=args.experiment_name,
             collect_interval=args.collect_interval,

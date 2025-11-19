@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+g#!/usr/bin/env python3
 """
 Create an extreme rush hour scenario with maximum traffic.
 
@@ -8,7 +8,7 @@ with vehicles, ensuring occupancy and density are always > 0 for main lanes.
 
 import yaml
 from pathlib import Path
-from typing import List, Dict, Any
+from typing import Dict, Any
 
 ROUTES = [
     "north_south",

@@ -145,7 +145,7 @@ def main():
     
     # Filter data
     try:
-        df_filtered = filter_lane_data_to_main_lanes(
+        filter_lane_data_to_main_lanes(
             input_csv=args.input_csv,
             output_csv=args.output,
             intersection_name=args.intersection,
