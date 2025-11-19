@@ -10,7 +10,6 @@ from SUMO configuration files.
 from typing import Set, Optional, List
 from pathlib import Path
 from xml.etree import ElementTree as ET
-import re
 
 
 def discover_main_lanes_from_network(intersection_dir: Path) -> Set[str]:

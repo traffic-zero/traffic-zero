@@ -8,8 +8,7 @@ by introducing sensor noise, errors, and inconsistencies into SUMO TraCI data.
 import random
 import numpy as np
 from enum import Enum
-from typing import Optional, Tuple, Dict, Any
-import traci
+from typing import Optional, Tuple
 
 
 class RealismLevel(Enum):
@@ -76,13 +75,6 @@ class RealismMode:
         """Initialize some sensors as permanently failed based on realism level."""
         if self.level == RealismLevel.NONE:
             return
-        
-        # Probability of a sensor being permanently failed
-        failure_prob = {
-            RealismLevel.LOW: 0.01,    # 1% of sensors
-            RealismLevel.MED: 0.05,    # 5% of sensors
-            RealismLevel.HIGH: 0.10,   # 10% of sensors
-        }.get(self.level, 0.0)
         
         # This will be populated as sensors are encountered
         # For now, we'll mark sensors as failed on-the-fly
