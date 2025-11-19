@@ -156,7 +156,7 @@ Cleanup complete.
 - Traffic lights at your intersection
 - Clean environment - just roads and ground
 
-## Using It
+## Using CARLA-SUMO Integration
 
 ### Python API
 

@@ -6,7 +6,7 @@ throughput, queue lengths, emissions, and other performance indicators.
 """
 
 import pandas as pd
-from typing import Dict, Optional
+from typing import Dict, Optional, Callable
 from pathlib import Path
 
 
@@ -14,7 +14,7 @@ class MetricsCalculator:
     """
     Calculates evaluation metrics from collected simulation data.
     
-    Computes both per-step snapshots and end-of-simulation aggregates.
+    Uses a schema-based approach to define and compute metrics dynamically.
     """
     
     def __init__(self, output_dir: Optional[str] = None):
@@ -28,6 +28,99 @@ class MetricsCalculator:
         
         if self.output_dir:
             self.output_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Define what to compute for each category and column
+        self.metric_schema = {
+            "vehicle": {
+                "waiting_time": ["mean", "max", "sum"],
+                "speed": ["mean", "max", "min"],
+                "co2_emission": ["sum", "mean"],
+                "co_emission": ["sum"],
+                "nox_emission": ["sum"],
+                "fuel_consumption": ["sum", "mean"],
+                "vehicle_id": ["nunique"],
+            },
+            "lane": {
+                "queue_length": ["mean", "max", "sum"],
+                "waiting_time": ["mean", "max"],
+                "occupancy": ["mean", "max"],
+                "density": ["mean", "max"],
+                "mean_speed": ["mean", "min"],
+            },
+            "edge": {
+                "travel_time": ["mean", "max", "min"],
+                "mean_speed": ["mean"],
+                "occupancy": ["mean", "max"],
+            },
+            "simulation": {
+                "arrived_count": ["max"],
+                "departed_count": ["max"],
+                "time": ["max", "min"],
+                "vehicle_count": ["mean", "max"],
+            },
+        }
+        
+        # Map aggregation names to actual callables
+        self.agg_funcs: Dict[str, Callable[[pd.Series], float]] = {
+            "mean": pd.Series.mean,
+            "max": pd.Series.max,
+            "min": pd.Series.min,
+            "sum": pd.Series.sum,
+            "nunique": pd.Series.nunique,
+        }
+        
+        # Mapping from schema-based names to legacy names for backward compatibility
+        self._legacy_name_mapping = self._build_legacy_name_mapping()
+    
+    def _build_legacy_name_mapping(self) -> Dict[str, str]:
+        """Build mapping from schema-based names to legacy metric names."""
+        mapping = {}
+        
+        # Vehicle metrics
+        mapping["vehicle_waiting_time_mean"] = "average_waiting_time"
+        mapping["vehicle_waiting_time_max"] = "max_waiting_time"
+        mapping["vehicle_waiting_time_sum"] = "total_waiting_time"
+        mapping["vehicle_speed_mean"] = "average_speed"
+        mapping["vehicle_speed_max"] = "max_speed"
+        mapping["vehicle_speed_min"] = "min_speed"
+        mapping["vehicle_co2_emission_sum"] = "total_co2_emission"
+        mapping["vehicle_co2_emission_mean"] = "average_co2_emission"
+        mapping["vehicle_co_emission_sum"] = "total_co_emission"
+        mapping["vehicle_nox_emission_sum"] = "total_nox_emission"
+        mapping["vehicle_fuel_consumption_sum"] = "total_fuel_consumption"
+        mapping["vehicle_fuel_consumption_mean"] = "average_fuel_consumption"
+        mapping["vehicle_vehicle_id_nunique"] = "unique_vehicles"
+        
+        # Lane metrics
+        mapping["lane_queue_length_max"] = "max_queue_length"
+        mapping["lane_queue_length_mean"] = "average_queue_length"
+        mapping["lane_queue_length_sum"] = "total_queue_length"
+        mapping["lane_waiting_time_max"] = "max_lane_waiting_time"
+        mapping["lane_waiting_time_mean"] = "average_lane_waiting_time"
+        mapping["lane_occupancy_max"] = "max_lane_occupancy"
+        mapping["lane_occupancy_mean"] = "average_lane_occupancy"
+        mapping["lane_density_max"] = "max_lane_density"
+        mapping["lane_density_mean"] = "average_lane_density"
+        mapping["lane_mean_speed_mean"] = "average_lane_speed"
+        mapping["lane_mean_speed_min"] = "min_lane_speed"
+        
+        # Edge metrics
+        mapping["edge_travel_time_mean"] = "average_travel_time"
+        mapping["edge_travel_time_max"] = "max_travel_time"
+        mapping["edge_travel_time_min"] = "min_travel_time"
+        mapping["edge_mean_speed_mean"] = "average_edge_speed"
+        mapping["edge_occupancy_mean"] = "average_edge_occupancy"
+        mapping["edge_occupancy_max"] = "max_edge_occupancy"
+        
+        # Simulation metrics
+        mapping["simulation_arrived_count_max"] = "throughput"
+        mapping["simulation_departed_count_max"] = "total_departed"
+        mapping["simulation_time_max"] = "simulation_duration"
+        mapping["simulation_time_min"] = "simulation_start_time"
+        mapping["simulation_vehicle_count_mean"] = "average_vehicle_count"
+        mapping["simulation_vehicle_count_max"] = "max_vehicle_count"
+        
+        return mapping
     
     def calculate_metrics(
         self,
@@ -46,25 +139,45 @@ class MetricsCalculator:
             simulation_df: DataFrame with simulation state data
         
         Returns:
-            Dictionary of metric names to values
+            Dictionary of metric names to values (uses legacy names for backward compatibility)
         """
+        dfs = {
+            "vehicle": vehicle_df,
+            "lane": lane_df,
+            "edge": edge_df,
+            "simulation": simulation_df,
+        }
+        
         metrics = {}
+        for name, df in dfs.items():
+            if df is not None and not df.empty:
+                schema_metrics = self._calculate_metrics_from_schema(name, df)
+                # Convert schema-based names to legacy names for backward compatibility
+                for schema_name, value in schema_metrics.items():
+                    legacy_name = self._legacy_name_mapping.get(schema_name, schema_name)
+                    metrics[legacy_name] = value
         
-        if not vehicle_df.empty:
-            # Vehicle-based metrics
-            metrics.update(self._calculate_vehicle_metrics(vehicle_df))
+        return metrics
+    
+    def _calculate_metrics_from_schema(self, category: str, df: pd.DataFrame) -> Dict[str, float]:
+        """Calculate metrics from a category DataFrame based on the schema."""
+        metrics = {}
+        schema = self.metric_schema.get(category, {})
         
-        if not lane_df.empty:
-            # Lane-based metrics
-            metrics.update(self._calculate_lane_metrics(lane_df))
-        
-        if not edge_df.empty:
-            # Edge-based metrics
-            metrics.update(self._calculate_edge_metrics(edge_df))
-        
-        if not simulation_df.empty:
-            # Simulation-based metrics
-            metrics.update(self._calculate_simulation_metrics(simulation_df))
+        for col, aggs in schema.items():
+            if col not in df.columns:
+                # Fill zeros if missing
+                for agg in aggs:
+                    metrics[f"{category}_{col}_{agg}"] = 0.0
+                continue
+            
+            for agg in aggs:
+                func = self.agg_funcs[agg]
+                val = func(df[col]) if not df[col].empty else 0.0
+                # Handle NaN values from pandas operations
+                if pd.isna(val):
+                    val = 0.0
+                metrics[f"{category}_{col}_{agg}"] = float(val)
         
         return metrics
     

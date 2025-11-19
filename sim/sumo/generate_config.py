@@ -5,11 +5,13 @@ This script creates .sumocfg files needed for CARLA-SUMO co-simulation.
 """
 
 import argparse
+import sys
 from pathlib import Path
+from typing import Optional
 from xml.etree import ElementTree as ET
 
 
-def generate_sumocfg(simulation_name: str, experiment_name: str = None):
+def generate_sumocfg(simulation_name: str, experiment_name: Optional[str] = None) -> bool:
     """
     Generate a .sumocfg file for a given simulation.
     
@@ -21,7 +23,7 @@ def generate_sumocfg(simulation_name: str, experiment_name: str = None):
     base_dir = Path(__file__).parent.parent / "intersections" / simulation_name
     
     if not base_dir.exists():
-        print(f"[ERROR] Simulation directory not found: {base_dir}")
+        sys.stderr.write(f"[ERROR] Simulation directory not found: {base_dir}\n")
         return False
     
     # If experiment_name is provided, generate routes and tls from scenario
@@ -43,7 +45,7 @@ def generate_sumocfg(simulation_name: str, experiment_name: str = None):
             generate_tls_xml(scenario, tls_path)
             
         except Exception as e:
-            print(f"[ERROR] Failed to load/generate scenario: {e}")
+            sys.stderr.write(f"[ERROR] Failed to load/generate scenario: {e}\n")
             return False
     
     # Expected files
@@ -53,8 +55,8 @@ def generate_sumocfg(simulation_name: str, experiment_name: str = None):
     
     # Check required files
     if not net_file.exists():
-        print(f"[ERROR] Network file not found: {net_file}")
-        print("Run netconvert first or ensure network.net.xml exists")
+        sys.stderr.write(f"[ERROR] Network file not found: {net_file}\n")
+        sys.stderr.write("Run netconvert first or ensure network.net.xml exists\n")
         return False
     
     if not route_file.exists():
