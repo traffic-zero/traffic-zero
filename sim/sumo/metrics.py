@@ -186,6 +186,7 @@ class MetricsCalculator:
                 if bool(is_na_result):
                     return 0.0
             except (ValueError, TypeError):
+                # Some types may not be convertible to bool; ignore and proceed with metric calculation.
                 pass
         return float(val)
 
