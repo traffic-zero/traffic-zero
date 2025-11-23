@@ -5,6 +5,7 @@ Want to see your SUMO traffic simulations in beautiful 3D? Let's get CARLA runni
 ## Prerequisites
 
 **Before starting with CARLA**, make sure you've:
+
 1. Completed the basic project setup (see main [README.md](../README.md))
 2. Successfully run a SUMO simulation using [SUMO.md](./SUMO.md)
 3. Have at least one working simulation scenario (e.g., "simple4")
@@ -35,12 +36,14 @@ Extract it somewhere nice, like `C:\CARLA\CARLA_0.9.15`
 Tell your system where CARLA lives:
 
 **Windows** (PowerShell as Admin):
+
 ```powershell
 [System.Environment]::SetEnvironmentVariable('CARLA_ROOT', 'C:\CARLA\CARLA_0.9.15', 'User')
 [System.Environment]::SetEnvironmentVariable('PYTHONPATH', 'C:\CARLA\CARLA_0.9.15\PythonAPI\carla', 'User')
 ```
 
 **Linux/macOS**:
+
 ```bash
 echo 'export CARLA_ROOT="/opt/carla/CARLA_0.9.15"' >> ~/.bashrc
 echo 'export PYTHONPATH="${CARLA_ROOT}/PythonAPI/carla:${PYTHONPATH}"' >> ~/.bashrc
@@ -49,7 +52,7 @@ source ~/.bashrc
 
 ⚠️ **Important**: Restart your terminal after this!
 
-### Step 3: That's It!
+### Step 3: That's It
 
 No need to manually generate configuration files - the system will auto-generate the `.sumocfg` file when you run your simulation. Just make sure your scenario files (network, routes, etc.) exist in the `sim/intersections/` folder.
 
@@ -60,23 +63,27 @@ No need to manually generate configuration files - the system will auto-generate
 Open a terminal and start CARLA:
 
 **Windows (with GPU):**
+
 ```bash
 cd C:\CARLA\CARLA_0.9.15
 .\CarlaUE4.exe -d3d11 -carla-server -benchmark -fps=30 -windowed -ResX=1280 -ResY=720
 ```
 
 **Linux (with GPU):**
+
 ```bash
 cd /opt/carla/CARLA_0.9.15
-./CarlaUE4.sh -vulkan -carla-server -benchmark -fps=30 -windowed -ResX=1280 -ResY=720
+./CarlaUE4.sh -prefernvidia -opengl -carla-server -benchmark -fps=30 -windowed -ResX=1280 -ResY=720
 ```
 
 **Alternative GPU flags:**
+
 - **Windows NVIDIA**: `-d3d11` or `-d3d12` or `-vulkan`
 - **Windows AMD**: `-d3d11` or `-d3d12`
-- **Linux**: `-vulkan` or `-opengl`
+- **Linux**: `-vulkan` or `-opengl` (`-prefernvidia` if CUDA is available)
 
 **Running on CPU (no GPU available):**
+
 ```bash
 # Windows (CPU only)
 .\CarlaUE4.exe -windowed -ResX=800 -ResY=600 -quality-level=Low
@@ -103,7 +110,7 @@ python -m sim.carla simple4 --duration 120
 
 The terminal will show something like this:
 
-```
+```plaintext
 Starting co-simulation for 'simple4'...
 Duration: 120s
 Use SUMO network: True
@@ -151,6 +158,7 @@ Cleanup complete.
 ```
 
 **In the CARLA window**, you'll see:
+
 - Your intersection rendered as a plain 3D map (no city buildings!)
 - Colorful vehicles moving around
 - Traffic lights at your intersection
@@ -195,6 +203,7 @@ python -m sim.carla simple4 --no-sumo-network
 ### Your SUMO Network Becomes the Map
 
 The simulation automatically:
+
 1. Converts your SUMO network to OpenDRIVE format
 2. Loads it as a custom CARLA map
 3. Generates a clean 3D environment with just YOUR roads
@@ -241,6 +250,7 @@ export PYTHONPATH="${CARLA_ROOT}/PythonAPI/carla:${PYTHONPATH}"
 ### Simulation Running But Can't See Vehicles
 
 The camera might be looking at the wrong place. When simulation starts:
+
 1. Look around with your mouse
 2. Move camera with WASD
 3. Scroll UP several times for faster movement
@@ -289,17 +299,18 @@ run_carla("simple4")
 
 ## FAQ
 
-**Q: Do I need CARLA to run SUMO simulations?**  
+**Q: Do I need CARLA to run SUMO simulations?**
 A: Nope! SUMO works fine on its own. CARLA is just for fancy 3D visualization.
 
-**Q: Can I use this with my RL agent?**  
+**Q: Can I use this with my RL agent?**
 A: Absolutely! Your agent controls traffic via SUMO's TraCI, and CARLA just shows you what's happening in 3D.
 
-**Q: Do I need to restart CARLA between simulations?**  
+**Q: Do I need to restart CARLA between simulations?**
 A: No, keep it running and run multiple simulations!
 
-**Q: CARLA is running slow/laggy. How do I fix it?**  
+**Q: CARLA is running slow/laggy. How do I fix it?**
 A: Try these solutions in order:
+
 1. Use GPU flags: `./CarlaUE4.exe -d3d11 -carla-server -benchmark -fps=30`
 2. Lower the graphics quality: `./CarlaUE4.exe -quality-level=Low`
 3. Reduce resolution: `./CarlaUE4.exe -ResX=800 -ResY=600`
@@ -307,14 +318,14 @@ A: Try these solutions in order:
 5. If no GPU available, use CPU mode: `./CarlaUE4.exe -windowed -ResX=800 -ResY=600 -quality-level=Low`
 6. Check Task Manager (Windows) or `nvidia-smi` (Linux) to verify GPU usage
 
-**Q: I don't have a GPU. Can I still use CARLA?**  
+**Q: I don't have a GPU. Can I still use CARLA?**
 A: Yes, but it will be much slower. Use CPU mode: `./CarlaUE4.exe -windowed -ResX=800 -ResY=600 -quality-level=Low`
 Consider using SUMO without CARLA for better performance if you don't need 3D visualization.
 
-**Q: Why is the map plain/empty?**  
+**Q: Why is the map plain/empty?**
 A: That's intentional! We convert your SUMO network to a custom map with only YOUR roads. No city buildings to block your view.
 
-**Q: Can I record the simulation?**  
+**Q: Can I record the simulation?**
 A: Yes! CARLA has built-in recording. Check the [CARLA docs](https://carla.readthedocs.io/) for details.
 
 ## Need Help?

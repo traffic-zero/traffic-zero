@@ -129,7 +129,7 @@ traffic:
 
 **Required fields**: `id`, `type`, `route`, `depart`
 
-**Use cases**: 
+**Use cases**:
 - Precise control over vehicle timing
 - Reproducible scenarios
 - Testing specific traffic patterns
@@ -689,4 +689,3 @@ run_automated("simple4", experiment_name="baseline")
 - [TraCI API](https://sumo.dlr.de/docs/TraCI.html)
 - [SUMO Vehicle Types](https://sumo.dlr.de/docs/Definition_of_Vehicles,_Vehicle_Types,_and_Routes.html)
 - [SUMO Traffic Lights](https://sumo.dlr.de/docs/Simulation/Traffic_Lights.html)
-
