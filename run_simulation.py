@@ -1,6 +1,6 @@
 from argparse import ArgumentParser
 
-from sim import run_automated, run_interactive
+from sim import run_automated, run_carla, run_interactive
 
 
 def generate_dataset(experiment_name: str):
@@ -48,37 +48,33 @@ def main():
         type=str,
         help="Experiment name",
     )
+    parser.add_argument(
+        "--mode",
+        type=str,
+        choices=["interactive", "automated", "carla"],
+        default="interactive",
+        help="Mode to run the simulation in",
+    )
+    parser.add_argument(
+        "--experiment-name",
+        type=str,
+        choices=["light_traffic", "light_traffic_random", "rush_hour"],
+        default="rush_hour",
+        help="Experiment name",
+    )
 
     args = parser.parse_args()
     if args.generate_dataset:
         print("Generating dataset...")
         generate_dataset(args.generate_dataset)
+        return
 
-    # Call the runner for a specific simulation
-
-    # Use run_interactive for manual control
-    # and visual exploration (recommended)
-
-    # Basic usage with default XML files:
-    # run_interactive("simple4")
-
-    # Use with experiment scenario (generates routes/tls from YAML):
-    # run_interactive("simple4", experiment_name="light_traffic")
-    # run_interactive("simple4", experiment_name="light_traffic_random")
-    run_interactive("simple4", experiment_name="rush_hour")
-
-    # Use run_automated for programmatic control
-    # and experiments (runs for 30 minutes)
-
-    # Basic usage:
-    # run_automated("simple4")
-
-    # Use with experiment scenario:
-    # run_automated("simple4", experiment_name="light_traffic")
-    # run_automated("simple4", experiment_name="rush_hour")
-
-    # Use run_carla for CARLA co-simulation
-    # run_carla("simple4")
+    if args.mode == "interactive":
+        run_interactive("simple4", args.experiment_name)
+    elif args.mode == "automated":
+        run_automated("simple4", args.experiment_name)
+    elif args.mode == "carla":
+        run_carla("simple4", args.experiment_name)
 
 
 if __name__ == "__main__":
