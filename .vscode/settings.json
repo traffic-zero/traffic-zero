@@ -13,4 +13,6 @@
         "editor.defaultFormatter": "ms-python.black-formatter",
     },
     "flake8.enabled": true,
+    "cursorpyright.analysis.autoImportCompletions": true,
+    "cursorpyright.analysis.diagnosticMode": "workspace",
 }
