@@ -4,7 +4,7 @@ from sim import run_automated, run_carla, run_interactive
 
 
 def generate_dataset(experiment_name: str):
-    # Basic data collection for light_traffic_random scenario
+    # Basic data collection for the specified experiment scenario
     # Collects all TraCI data and exports to CSV files
     result = run_automated(
         simulation_name="simple4",
