@@ -9,7 +9,6 @@ def generate_dataset(experiment_name: str):
     result = run_automated(
         simulation_name="simple4",
         experiment_name=experiment_name,
-        # collect_interval=10,  # Collect data every 10th step
         output_dir=f"./data/{experiment_name}",
         enable_data_collection=True,
         max_steps=1000,  # Run for 1000 steps (adjust as needed)

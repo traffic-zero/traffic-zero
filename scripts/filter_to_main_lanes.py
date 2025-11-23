@@ -2,8 +2,9 @@
 """
 Filter lane_data.csv to keep only the main entry/exit lanes.
 
-This script automatically discovers main lanes from SUMO network configuration files,
-making it work with any intersection without hardcoding lane names.
+This script automatically discovers main lanes from SUMO network
+configuration files, making it work with any intersection without hardcoding
+lane names.
 """
 
 import pandas as pd
@@ -14,92 +15,135 @@ import sys
 # Add project root to path to import from sim.sumo
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
-
-from sim.sumo.lane_utils import get_main_lanes_for_intersection
+from sim.sumo.lane_utils import get_main_lanes_for_intersection  # noqa: E402
 
 
 def filter_lane_data_to_main_lanes(
     input_csv: Path,
-    output_csv: Path = None,
+    output_csv: Path | None = None,
     intersection_name: str = "simple4",
     backup: bool = True,
-    intersection_base_dir: Path = None,
+    intersection_base_dir: Path | None = None,
 ) -> pd.DataFrame:
     """
     Filter lane_data.csv to keep only main entry/exit lanes.
-    
-    Main lanes are automatically discovered from SUMO network configuration files,
-    ensuring compatibility with any intersection.
-    
+
+    Main lanes are automatically discovered from SUMO network configuration
+    files, ensuring compatibility with any intersection.
+
     Args:
         input_csv: Input CSV file path
         output_csv: Output CSV file path (if None, overwrites input)
         intersection_name: Name of intersection (default: 'simple4')
         backup: If True, create backup of original file
-        intersection_base_dir: Base directory for intersections (default: sim/intersections)
-    
+        intersection_base_dir: Base directory for intersections
+                              (default: sim/intersections)
+
     Returns:
         Filtered DataFrame
     """
     # Load data
     print(f"[INFO] Loading data from: {input_csv}")
     df = pd.read_csv(input_csv)
-    
+
     original_rows = len(df)
-    original_lanes = df['lane_id'].nunique()
-    
-    print(f"[INFO] Original data: {original_rows:,} rows, {original_lanes} unique lanes")
-    
+    original_lanes = df["lane_id"].nunique()
+
+    print(
+        "[INFO] Original data: "
+        + str(original_rows)
+        + " rows, "
+        + str(original_lanes)
+        + " unique lanes"
+    )
+
     # Discover main lanes from SUMO network files
-    print(f"[INFO] Discovering main lanes for intersection: {intersection_name}")
+    print(
+        "[INFO] Discovering main lanes for intersection: " + intersection_name
+    )
     try:
-        main_lanes = get_main_lanes_for_intersection(intersection_name, intersection_base_dir)
-        print(f"[INFO] Discovered {len(main_lanes)} main lanes: {sorted(main_lanes)}")
+        main_lanes = get_main_lanes_for_intersection(
+            intersection_name, intersection_base_dir
+        )
+        print(
+            "[INFO] Discovered "
+            + str(len(main_lanes))
+            + " main lanes: "
+            + str(sorted(main_lanes))
+        )
     except FileNotFoundError as e:
         print(f"[ERROR] {e}")
         print("[ERROR] Unable to discover lanes. Make sure:")
-        print(f"  1. Intersection '{intersection_name}' exists in sim/intersections/")
-        print("  2. network.net.xml has been generated (run netconvert or generate_sumocfg)")
+        print(
+            "  1. Intersection '"
+            + intersection_name
+            + "' exists in sim/intersections/"
+        )
+        print(
+            "  2. network.net.xml has been generated "
+            "(run netconvert or generate_sumocfg)"
+        )
         raise
     except Exception as e:
         print(f"[ERROR] Failed to discover lanes: {e}")
         raise
-    
+
     # Filter to main lanes only
-    df_filtered = df[df['lane_id'].isin(main_lanes)].copy()
-    
+    df_filtered = df[df["lane_id"].isin(list(main_lanes))].copy()
+
     filtered_rows = len(df_filtered)
-    filtered_lanes = df_filtered['lane_id'].nunique()
-    
-    print(f"[INFO] Filtered data: {filtered_rows:,} rows, {filtered_lanes} unique lanes")
-    print(f"[INFO] Removed: {original_rows - filtered_rows:,} rows ({100*(original_rows-filtered_rows)/original_rows:.1f}%)")
-    
+    filtered_lanes = df_filtered["lane_id"].nunique()
+
+    print(
+        "[INFO] Filtered data: "
+        + str(filtered_rows)
+        + " rows, "
+        + str(filtered_lanes)
+        + " unique lanes"
+    )
+    print(
+        "[INFO] Removed: "
+        + str(original_rows - filtered_rows)
+        + " rows ("
+        + str(100 * (original_rows - filtered_rows) / original_rows)
+        + "%)"
+    )
+
     # Show lane breakdown
     print("\n" + "=" * 60)
     print("LANE BREAKDOWN")
     print("=" * 60)
     for lane in sorted(main_lanes):
-        lane_data = df_filtered[df_filtered['lane_id'] == lane]
+        lane_data = df_filtered[df_filtered["lane_id"] == lane]
         if len(lane_data) > 0:
-            with_vehicles = lane_data[lane_data['vehicle_count'] > 0]
-            print(f"  {lane}: {len(lane_data):,} rows, "
-                  f"{len(with_vehicles):,} with vehicles ({100*len(with_vehicles)/len(lane_data):.1f}%)")
-    
+            with_vehicles = lane_data[lane_data["vehicle_count"] > 0]
+            print(
+                "  "
+                + lane
+                + ": "
+                + str(len(lane_data))
+                + " rows, "
+                + str(len(with_vehicles))
+                + " with vehicles ("
+                + str(100 * len(with_vehicles) / len(lane_data))
+                + "%)"
+            )
+
     # Create backup if requested
     if backup and output_csv is None:
         backup_path = input_csv.parent / f"{input_csv.stem}_backup.csv"
         print(f"\n[INFO] Creating backup: {backup_path}")
         df.to_csv(backup_path, index=False)
-    
+
     # Determine output path
     if output_csv is None:
         output_csv = input_csv
-    
+
     # Save filtered data
     output_csv.parent.mkdir(parents=True, exist_ok=True)
     df_filtered.to_csv(output_csv, index=False)
     print(f"\n[SUCCESS] Filtered data saved to: {output_csv}")
-    
+
     return df_filtered
 
 
@@ -123,7 +167,10 @@ def main():
         "--intersection",
         type=str,
         default="simple4",
-        help="Intersection name (default: simple4). Main lanes are auto-discovered from SUMO network files.",
+        help=(
+            "Intersection name (default: simple4). "
+            "Main lanes are auto-discovered from SUMO network files."
+        ),
     )
     parser.add_argument(
         "--intersection-dir",
@@ -136,13 +183,13 @@ def main():
         action="store_true",
         help="Don't create backup of original file",
     )
-    
+
     args = parser.parse_args()
-    
+
     if not args.input_csv.exists():
         print(f"[ERROR] File not found: {args.input_csv}")
         return 1
-    
+
     # Filter data
     try:
         filter_lane_data_to_main_lanes(
@@ -155,10 +202,9 @@ def main():
     except (FileNotFoundError, ValueError) as e:
         print(f"\n[ERROR] {e}")
         return 1
-    
+
     return 0
 
 
 if __name__ == "__main__":
     exit(main())
-

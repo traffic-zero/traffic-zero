@@ -4,7 +4,7 @@ YAML loader and saver for scenario configurations with JSON schema validation.
 
 import json
 from pathlib import Path
-from typing import Dict, Any, Optional, List
+from typing import Any
 
 import jsonschema
 import yaml
@@ -36,7 +36,9 @@ def _get_experiments_dir() -> Path:
     return project_root / "experiments"
 
 
-def validate_scenario(data: Dict[str, Any], schema_path: Optional[Path] = None) -> None:
+def validate_scenario(
+    data: dict[str, Any], schema_path: Path | None = None
+) -> None:
     """
     Validate scenario data against JSON schema.
 
@@ -63,7 +65,14 @@ def validate_scenario(data: Dict[str, Any], schema_path: Optional[Path] = None) 
     jsonschema.validate(instance=data, schema=schema)
 
 
-def _dict_to_vehicle_type(data: Dict[str, Any]) -> VehicleType:
+def _get_field(
+    data: dict[str, Any], snake_key: str, camel_key: str, default: Any = None
+) -> Any:
+    """Get field from dict supporting both snake_case and camelCase."""
+    return data.get(snake_key, data.get(camel_key, default))
+
+
+def _dict_to_vehicle_type(data: dict[str, Any]) -> VehicleType:
     """Convert dictionary to VehicleType dataclass."""
     return VehicleType(
         id=data["id"],
@@ -71,69 +80,69 @@ def _dict_to_vehicle_type(data: Dict[str, Any]) -> VehicleType:
         decel=data.get("decel", 4.5),
         sigma=data.get("sigma", 0.5),
         length=data.get("length", 5.0),
-        maxSpeed=data.get("maxSpeed", 13.9),
+        max_speed=_get_field(data, "max_speed", "maxSpeed", 13.9),
         color=data.get("color"),
-        minGap=data.get("minGap"),
+        min_gap=_get_field(data, "min_gap", "minGap"),
         tau=data.get("tau"),
-        speedFactor=data.get("speedFactor"),
-        speedDev=data.get("speedDev"),
+        speed_factor=_get_field(data, "speed_factor", "speedFactor"),
+        speed_dev=_get_field(data, "speed_dev", "speedDev"),
     )
 
 
-def _dict_to_route(data: Dict[str, Any]) -> Route:
+def _dict_to_route(data: dict[str, Any]) -> Route:
     """Convert dictionary to Route dataclass."""
     return Route(id=data["id"], edges=data["edges"])
 
 
-def _dict_to_vehicle(data: Dict[str, Any]) -> Vehicle:
+def _dict_to_vehicle(data: dict[str, Any]) -> Vehicle:
     """Convert dictionary to Vehicle dataclass."""
     return Vehicle(
         id=data["id"],
         type=data["type"],
         route=data["route"],
         depart=data["depart"],
-        departLane=data.get("departLane"),
-        departPos=data.get("departPos"),
-        departSpeed=data.get("departSpeed"),
-        arrivalLane=data.get("arrivalLane"),
-        arrivalPos=data.get("arrivalPos"),
-        arrivalSpeed=data.get("arrivalSpeed"),
+        depart_lane=_get_field(data, "depart_lane", "departLane"),
+        depart_pos=_get_field(data, "depart_pos", "departPos"),
+        depart_speed=_get_field(data, "depart_speed", "departSpeed"),
+        arrival_lane=_get_field(data, "arrival_lane", "arrivalLane"),
+        arrival_pos=_get_field(data, "arrival_pos", "arrivalPos"),
+        arrival_speed=_get_field(data, "arrival_speed", "arrivalSpeed"),
     )
 
 
-def _dict_to_flow(data: Dict[str, Any]) -> Flow:
+def _dict_to_flow(data: dict[str, Any]) -> Flow:
     """Convert dictionary to Flow dataclass."""
     return Flow(
         route=data["route"],
         type=data["type"],
         begin=data.get("begin", 0.0),
         end=data.get("end", 3600.0),
-        vehsPerHour=data.get("vehsPerHour"),
+        vehs_per_hour=_get_field(data, "vehs_per_hour", "vehsPerHour"),
         period=data.get("period"),
         probability=data.get("probability"),
         number=data.get("number"),
-        departLane=data.get("departLane"),
-        departPos=data.get("departPos"),
-        departSpeed=data.get("departSpeed"),
-        arrivalLane=data.get("arrivalLane"),
-        arrivalPos=data.get("arrivalPos"),
-        arrivalSpeed=data.get("arrivalSpeed"),
+        depart_lane=_get_field(data, "depart_lane", "departLane"),
+        depart_pos=_get_field(data, "depart_pos", "departPos"),
+        depart_speed=_get_field(data, "depart_speed", "departSpeed"),
+        arrival_lane=_get_field(data, "arrival_lane", "arrivalLane"),
+        arrival_pos=_get_field(data, "arrival_pos", "arrivalPos"),
+        arrival_speed=_get_field(data, "arrival_speed", "arrivalSpeed"),
         id=data.get("id"),
     )
 
 
-def _dict_to_phase(data: Dict[str, Any]) -> Phase:
+def _dict_to_phase(data: dict[str, Any]) -> Phase:
     """Convert dictionary to Phase dataclass."""
     return Phase(
         duration=data["duration"],
         state=data["state"],
-        minDur=data.get("minDur"),
-        maxDur=data.get("maxDur"),
+        min_dur=_get_field(data, "min_dur", "minDur"),
+        max_dur=_get_field(data, "max_dur", "maxDur"),
         name=data.get("name"),
     )
 
 
-def _dict_to_tl_program(data: Dict[str, Any]) -> TrafficLightProgram:
+def _dict_to_tl_program(data: dict[str, Any]) -> TrafficLightProgram:
     """Convert dictionary to TrafficLightProgram dataclass."""
     return TrafficLightProgram(
         id=data["id"],
@@ -144,7 +153,7 @@ def _dict_to_tl_program(data: Dict[str, Any]) -> TrafficLightProgram:
     )
 
 
-def _dict_to_scenario(data: Dict[str, Any]) -> Scenario:
+def _dict_to_scenario(data: dict[str, Any]) -> Scenario:
     """Convert dictionary to Scenario dataclass."""
     traffic_data = data["traffic"]
     traffic = TrafficConfig(
@@ -227,49 +236,112 @@ def load_scenario(
         jsonschema.ValidationError: If validation fails
     """
     experiments_dir = _get_experiments_dir()
-    scenario_path = experiments_dir / intersection_name / f"{experiment_name}.yaml"
+    scenario_path = (
+        experiments_dir / intersection_name / f"{experiment_name}.yaml"
+    )
 
     return load_scenario_from_path(scenario_path, validate=validate)
 
 
-def _scenario_to_dict(scenario: Scenario) -> Dict[str, Any]:
+def _vehicle_type_to_dict(vt) -> dict[str, Any]:
+    """Convert VehicleType to dictionary."""
+    result = {
+        "id": vt.id,
+        "accel": vt.accel,
+        "decel": vt.decel,
+        "sigma": vt.sigma,
+        "length": vt.length,
+        "maxSpeed": vt.max_speed,
+    }
+    if vt.color is not None:
+        result["color"] = vt.color
+    if vt.min_gap is not None:
+        result["minGap"] = vt.min_gap
+    if vt.tau is not None:
+        result["tau"] = vt.tau
+    if vt.speed_factor is not None:
+        result["speedFactor"] = vt.speed_factor
+    if vt.speed_dev is not None:
+        result["speedDev"] = vt.speed_dev
+    return result
+
+
+def _vehicle_to_dict(v) -> dict[str, Any]:
+    """Convert Vehicle to dictionary."""
+    result = {
+        "id": v.id,
+        "type": v.type,
+        "route": v.route,
+        "depart": v.depart,
+    }
+    if v.depart_lane is not None:
+        result["departLane"] = v.depart_lane
+    if v.depart_pos is not None:
+        result["departPos"] = v.depart_pos
+    if v.depart_speed is not None:
+        result["departSpeed"] = v.depart_speed
+    if v.arrival_lane is not None:
+        result["arrivalLane"] = v.arrival_lane
+    if v.arrival_pos is not None:
+        result["arrivalPos"] = v.arrival_pos
+    if v.arrival_speed is not None:
+        result["arrivalSpeed"] = v.arrival_speed
+    return result
+
+
+def _flow_to_dict(f) -> dict[str, Any]:
+    """Convert Flow to dictionary."""
+    result = {
+        "route": f.route,
+        "type": f.type,
+        "begin": f.begin,
+        "end": f.end,
+    }
+    if f.vehs_per_hour is not None:
+        result["vehsPerHour"] = f.vehs_per_hour
+    if f.period is not None:
+        result["period"] = f.period
+    if f.probability is not None:
+        result["probability"] = f.probability
+    if f.number is not None:
+        result["number"] = f.number
+    if f.depart_lane is not None:
+        result["departLane"] = f.depart_lane
+    if f.depart_pos is not None:
+        result["departPos"] = f.depart_pos
+    if f.depart_speed is not None:
+        result["departSpeed"] = f.depart_speed
+    if f.arrival_lane is not None:
+        result["arrivalLane"] = f.arrival_lane
+    if f.arrival_pos is not None:
+        result["arrivalPos"] = f.arrival_pos
+    if f.arrival_speed is not None:
+        result["arrivalSpeed"] = f.arrival_speed
+    if f.id is not None:
+        result["id"] = f.id
+    return result
+
+
+def _phase_to_dict(ph) -> dict[str, Any]:
+    """Convert Phase to dictionary."""
+    result = {
+        "duration": ph.duration,
+        "state": ph.state,
+    }
+    if ph.min_dur is not None:
+        result["minDur"] = ph.min_dur
+    if ph.max_dur is not None:
+        result["maxDur"] = ph.max_dur
+    if ph.name is not None:
+        result["name"] = ph.name
+    return result
+
+
+def _scenario_to_dict(scenario: Scenario) -> dict[str, Any]:
     """Convert Scenario dataclass to dictionary."""
     traffic_dict = {
         "vehicle_types": [
-            {
-                "id": vt.id,
-                "accel": vt.accel,
-                "decel": vt.decel,
-                "sigma": vt.sigma,
-                "length": vt.length,
-                "maxSpeed": vt.maxSpeed,
-                **(
-                    {"color": vt.color}
-                    if vt.color is not None
-                    else {}
-                ),
-                **(
-                    {"minGap": vt.minGap}
-                    if vt.minGap is not None
-                    else {}
-                ),
-                **(
-                    {"tau": vt.tau}
-                    if vt.tau is not None
-                    else {}
-                ),
-                **(
-                    {"speedFactor": vt.speedFactor}
-                    if vt.speedFactor is not None
-                    else {}
-                ),
-                **(
-                    {"speedDev": vt.speedDev}
-                    if vt.speedDev is not None
-                    else {}
-                ),
-            }
-            for vt in scenario.traffic.vehicle_types
+            _vehicle_type_to_dict(vt) for vt in scenario.traffic.vehicle_types
         ],
         "routes": [
             {"id": r.id, "edges": r.edges} for r in scenario.traffic.routes
@@ -278,105 +350,12 @@ def _scenario_to_dict(scenario: Scenario) -> Dict[str, Any]:
 
     if scenario.traffic.vehicles:
         traffic_dict["vehicles"] = [
-            {
-                "id": v.id,
-                "type": v.type,
-                "route": v.route,
-                "depart": v.depart,
-                **(
-                    {"departLane": v.departLane}
-                    if v.departLane is not None
-                    else {}
-                ),
-                **(
-                    {"departPos": v.departPos}
-                    if v.departPos is not None
-                    else {}
-                ),
-                **(
-                    {"departSpeed": v.departSpeed}
-                    if v.departSpeed is not None
-                    else {}
-                ),
-                **(
-                    {"arrivalLane": v.arrivalLane}
-                    if v.arrivalLane is not None
-                    else {}
-                ),
-                **(
-                    {"arrivalPos": v.arrivalPos}
-                    if v.arrivalPos is not None
-                    else {}
-                ),
-                **(
-                    {"arrivalSpeed": v.arrivalSpeed}
-                    if v.arrivalSpeed is not None
-                    else {}
-                ),
-            }
-            for v in scenario.traffic.vehicles
+            _vehicle_to_dict(v) for v in scenario.traffic.vehicles
         ]
 
     if scenario.traffic.flows:
         traffic_dict["flows"] = [
-            {
-                "route": f.route,
-                "type": f.type,
-                "begin": f.begin,
-                "end": f.end,
-                **(
-                    {"vehsPerHour": f.vehsPerHour}
-                    if f.vehsPerHour is not None
-                    else {}
-                ),
-                **(
-                    {"period": f.period}
-                    if f.period is not None
-                    else {}
-                ),
-                **(
-                    {"probability": f.probability}
-                    if f.probability is not None
-                    else {}
-                ),
-                **(
-                    {"number": f.number}
-                    if f.number is not None
-                    else {}
-                ),
-                **(
-                    {"departLane": f.departLane}
-                    if f.departLane is not None
-                    else {}
-                ),
-                **(
-                    {"departPos": f.departPos}
-                    if f.departPos is not None
-                    else {}
-                ),
-                **(
-                    {"departSpeed": f.departSpeed}
-                    if f.departSpeed is not None
-                    else {}
-                ),
-                **(
-                    {"arrivalLane": f.arrivalLane}
-                    if f.arrivalLane is not None
-                    else {}
-                ),
-                **(
-                    {"arrivalPos": f.arrivalPos}
-                    if f.arrivalPos is not None
-                    else {}
-                ),
-                **(
-                    {"arrivalSpeed": f.arrivalSpeed}
-                    if f.arrivalSpeed is not None
-                    else {}
-                ),
-                **({"id": f.id} if f.id is not None else {}),
-            }
-            for f in scenario.traffic.flows
+            _flow_to_dict(f) for f in scenario.traffic.flows
         ]
 
     tls_dict = {
@@ -386,24 +365,7 @@ def _scenario_to_dict(scenario: Scenario) -> Dict[str, Any]:
                 "program_id": p.program_id,
                 "offset": p.offset,
                 "type": p.type,
-                "phases": [
-                    {
-                        "duration": ph.duration,
-                        "state": ph.state,
-                        **(
-                            {"minDur": ph.minDur}
-                            if ph.minDur is not None
-                            else {}
-                        ),
-                        **(
-                            {"maxDur": ph.maxDur}
-                            if ph.maxDur is not None
-                            else {}
-                        ),
-                        **({"name": ph.name} if ph.name is not None else {}),
-                    }
-                    for ph in p.phases
-                ],
+                "phases": [_phase_to_dict(ph) for ph in p.phases],
             }
             for p in scenario.traffic_lights.programs
         ]
@@ -461,12 +423,14 @@ def save_scenario(
         jsonschema.ValidationError: If validation fails
     """
     experiments_dir = _get_experiments_dir()
-    scenario_path = experiments_dir / intersection_name / f"{experiment_name}.yaml"
+    scenario_path = (
+        experiments_dir / intersection_name / f"{experiment_name}.yaml"
+    )
 
     save_scenario_to_path(scenario, scenario_path, validate=validate)
 
 
-def list_experiments(intersection_name: str) -> List[str]:
+def list_experiments(intersection_name: str) -> list[str]:
     """
     List available experiments for an intersection.
 
@@ -492,4 +456,3 @@ def list_experiments(intersection_name: str) -> List[str]:
         experiments.append(file.stem)
 
     return sorted(experiments)
-
