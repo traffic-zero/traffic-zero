@@ -10,6 +10,11 @@ import sys
 import time
 import argparse
 import random
+from typing import Any
+import numpy as np
+import traci
+import gymnasium as gym
+from gymnasium import spaces
 
 # Add CARLA to Python path if CARLA_ROOT is set
 carla_root = os.environ.get("CARLA_ROOT")
@@ -41,63 +46,102 @@ except ImportError:
         "Make sure CARLA is installed at that location."
     )
 
-try:
-    import traci
-except ImportError:
-    raise ImportError("TraCI not found. Please install: pip install traci")
+
+def _normalize_traci_value(value: float | tuple | None) -> float:
+    """Normalize traci return value to float (handles tuple returns)."""
+    if value is None:
+        return 0.0
+    if isinstance(value, tuple):
+        return float(value[0]) if len(value) > 0 else 0.0
+    return float(value)
 
 
-class CarlaSumoSync:
+class CarlaSumoSync(gym.Env):
     """
     Synchronizes SUMO and CARLA simulations.
 
     This class manages the connection between SUMO and CARLA,
     synchronizing vehicles, traffic lights, and simulation steps.
+
+    Can be used as a Gymnasium environment for reinforcement learning
+    when enable_rl_control=True, or as a standard co-simulation tool
+    when enable_rl_control=False (default, backward compatible).
     """
 
     def __init__(
         self,
         sumo_cfg_file: str,
-        carla_host: str = "localhost",
-        carla_port: int = 2000,
-        step_length: float = 0.05,
-        sync_vehicle_lights: bool = True,
-        sync_vehicle_color: bool = False,
-        sync_all: bool = True,
-        tls_manager: str = "sumo",
-        carla_map: str | None = None,
-        auto_camera: bool = False,
-        use_sumo_network: bool = False,
+        **kwargs,
     ):
         """
         Initialize CARLA-SUMO synchronization.
 
         Args:
             sumo_cfg_file: Path to SUMO configuration file
-            carla_host: CARLA server hostname
-            carla_port: CARLA server port
-            step_length: Simulation step length in seconds
-            sync_vehicle_lights: Synchronize vehicle lights
-            sync_vehicle_color: Synchronize vehicle colors
-            sync_all: Sync all vehicles automatically
-            tls_manager: Traffic light manager ('sumo', 'carla', or 'none')
-            carla_map: CARLA map to load (None=current, 'empty'=empty map)
-            auto_camera: Automatically move camera to follow vehicles
-                         (default: False)
-            use_sumo_network: Load SUMO network as OpenDRIVE in CARLA
-                              (default: False)
+            **kwargs: Additional configuration parameters:
+                - carla_host: CARLA server hostname (default: "localhost")
+                - carla_port: CARLA server port (default: 2000)
+                - step_length:
+                    Simulation step length in seconds (default: 0.05)
+                - sync_vehicle_lights:
+                    Synchronize vehicle lights (default: True)
+                - sync_vehicle_color:
+                    Synchronize vehicle colors (default: False)
+                - sync_all: Sync all vehicles automatically (default: True)
+                - tls_manager:
+                    Traffic light manager ('sumo', 'carla', or 'none')
+                    (default: "sumo")
+                - carla_map:
+                    CARLA map to load (None=current, 'empty'=empty map)
+                    (default: None)
+                - auto_camera:
+                    Automatically move camera to follow vehicles
+                    (default: False)
+                - use_sumo_network:
+                    Load SUMO network as OpenDRIVE in CARLA
+                    (default: False)
+                - enable_rl_control:
+                    Enable RL action space for traffic light control
+                    (default: False, for backward compatibility)
+                - observation_config:
+                    Configuration dict for observation space.
+                    Options:
+                    - 'shape': tuple, observation shape (default: (10,))
+                    - 'low': float, lower bound (default: 0.0)
+                    - 'high': float, upper bound (default: inf)
+                    - 'include_lane_metrics': bool, include lane data
+                    - 'reward_waiting_time': bool, use waiting time in reward
+                    - 'reward_throughput': bool, use throughput in reward
+                    - 'max_duration': float, max episode duration in seconds
+                    (None = use defaults)
+                - action_config:
+                    Configuration dict for action space.
+                    Options:
+                    - 'num_phases':
+                        int, number of traffic light phases
+                        (default: 4)
+                    - 'num_traffic_lights':
+                        int, number of TLS
+                        (default: 1)
+                    (None = use defaults)
         """
+        super().__init__()
+
+        # Extract parameters from kwargs with defaults
         self.sumo_cfg = sumo_cfg_file
-        self.carla_host = carla_host
-        self.carla_port = carla_port
-        self.step_length = step_length
-        self.sync_vehicle_lights = sync_vehicle_lights
-        self.sync_vehicle_color = sync_vehicle_color
-        self.sync_all = sync_all
-        self.tls_manager = tls_manager
-        self.carla_map = carla_map
-        self.auto_camera = auto_camera
-        self.use_sumo_network = use_sumo_network
+        self.carla_host = kwargs.get("carla_host", "localhost")
+        self.carla_port = kwargs.get("carla_port", 2000)
+        self.step_length = kwargs.get("step_length", 0.05)
+        self.sync_vehicle_lights = kwargs.get("sync_vehicle_lights", True)
+        self.sync_vehicle_color = kwargs.get("sync_vehicle_color", False)
+        self.sync_all = kwargs.get("sync_all", True)
+        self.tls_manager = kwargs.get("tls_manager", "sumo")
+        self.carla_map = kwargs.get("carla_map", None)
+        self.auto_camera = kwargs.get("auto_camera", False)
+        self.use_sumo_network = kwargs.get("use_sumo_network", False)
+        self.enable_rl_control = kwargs.get("enable_rl_control", False)
+        self.observation_config = kwargs.get("observation_config", {})
+        self.action_config = kwargs.get("action_config", {})
 
         self.client = None
         self.world = None
@@ -108,6 +152,46 @@ class CarlaSumoSync:
         self.offset_x = 0.0  # Coordinate offset for SUMO->CARLA
         self.offset_y = 0.0
         self.scale = 1.0  # Scale factor
+
+        # RL state tracking
+        self._initialized = False
+        self._step_count = 0
+        self._start_time: float | None = None
+        self._tls_ids: list[str] = []
+        self._tls_controller: Any | None = None
+
+        # Initialize action and observation spaces
+        self._initialize_spaces()
+
+    def _initialize_spaces(self):
+        """Initialize action and observation spaces based on configuration."""
+        if self.enable_rl_control:
+            # Get traffic light IDs (will be populated after SUMO setup)
+            # For now, use default action space
+            num_phases = self.action_config.get("num_phases", 4)
+            num_tls = self.action_config.get("num_traffic_lights", 1)
+
+            if num_tls == 1:
+                # Single traffic light: Discrete action space
+                self.action_space = spaces.Discrete(num_phases)
+            else:
+                # Multiple traffic lights: MultiDiscrete action space
+                self.action_space = spaces.MultiDiscrete([num_phases] * num_tls)
+        else:
+            # No-op action space for backward compatibility
+            self.action_space = spaces.Discrete(1)
+
+        # Initialize observation space (will be updated after SUMO setup)
+        obs_shape = self.observation_config.get("shape", (10,))
+        obs_low = self.observation_config.get("low", 0.0)
+        obs_high = self.observation_config.get("high", np.inf)
+
+        self.observation_space = spaces.Box(
+            low=obs_low,
+            high=obs_high,
+            shape=obs_shape,
+            dtype=np.float32,
+        )
 
     def _load_sumo_network_as_opendrive(self) -> bool:
         """Load SUMO network as OpenDRIVE map in CARLA.
@@ -580,6 +664,358 @@ class CarlaSumoSync:
                 end="\r",
             )
 
+    def _get_traffic_light_phases(self, obs_features: list[float]) -> None:
+        """Extract traffic light phases and append to observation features."""
+        if not self._tls_ids:
+            return
+
+        for tls_id in self._tls_ids[:5]:  # Limit to first 5 TLS
+            try:
+                phase = traci.trafficlight.getPhase(tls_id)
+                if isinstance(phase, tuple):
+                    phase = phase[0] if len(phase) > 0 else 0
+                obs_features.append(float(phase))
+            except traci.TraCIException:
+                obs_features.append(0.0)
+
+    def _get_lane_metrics(self, obs_features: list[float]) -> None:
+        """Extract lane metrics and append to observation features."""
+        if not self.observation_config.get("include_lane_metrics", False):
+            return
+
+        try:
+            lane_ids = traci.lane.getIDList()
+            for lane_id in lane_ids[:5]:  # Limit to first 5 lanes
+                try:
+                    occupancy = traci.lane.getLastStepOccupancy(lane_id)
+                    if isinstance(occupancy, tuple):
+                        occupancy = occupancy[0] if len(occupancy) > 0 else 0.0
+                    obs_features.append(float(occupancy))
+                except traci.TraCIException:
+                    obs_features.append(0.0)
+        except traci.TraCIException:
+            pass
+
+    def _normalize_observation_size(
+        self, obs_features: list[float]
+    ) -> np.ndarray:
+        """Normalize observation features to match observation space shape."""
+        if (
+            not hasattr(self.observation_space, "shape")
+            or self.observation_space.shape is None
+        ):
+            # Fallback to default shape if shape is not available
+            target_size = 10
+        else:
+            target_size = self.observation_space.shape[0]
+
+        # Pad or truncate to match target size
+        obs_features = obs_features + [0.0] * (target_size - len(obs_features))
+
+        return np.array(obs_features, dtype=np.float32)
+
+    def _get_observation(self) -> np.ndarray:
+        """
+        Extract observation from current simulation state.
+
+        Returns:
+            numpy array with observation values
+        """
+        try:
+            obs_features = []
+
+            # Get simulation time and step
+            sim_time = _normalize_traci_value(traci.simulation.getTime())
+            obs_features.append(float(sim_time))
+            obs_features.append(float(self._step_count))
+
+            # Get vehicle count
+            vehicle_ids = traci.vehicle.getIDList()
+            num_vehicles = len(vehicle_ids)
+            obs_features.append(float(num_vehicles))
+
+            # Get traffic light states if available
+            self._get_traffic_light_phases(obs_features)
+
+            # Get lane metrics if configured
+            self._get_lane_metrics(obs_features)
+
+            # Normalize size and return
+            return self._normalize_observation_size(obs_features)
+
+        except Exception:
+            # Return zero observation on error
+            if (
+                hasattr(self.observation_space, "shape")
+                and self.observation_space.shape is not None
+            ):
+                shape = self.observation_space.shape
+            else:
+                shape = (10,)
+            return np.zeros(shape, dtype=np.float32)
+
+    def _calculate_waiting_time_reward(self) -> float:
+        """Calculate negative reward based on total waiting time."""
+        try:
+            vehicle_ids = traci.vehicle.getIDList()
+            total_waiting = 0.0
+            for veh_id in vehicle_ids:
+                try:
+                    waiting = traci.vehicle.getWaitingTime(veh_id)
+                    if isinstance(waiting, tuple):
+                        waiting = waiting[0] if len(waiting) > 0 else 0.0
+                    total_waiting += float(waiting)
+                except traci.TraCIException:
+                    continue
+            return -total_waiting * 0.01  # Scale down
+        except traci.TraCIException:
+            return 0.0
+
+    def _calculate_throughput_reward(self) -> float:
+        """Calculate positive reward based on vehicle throughput."""
+        try:
+            vehicle_ids = traci.vehicle.getIDList()
+            return len(vehicle_ids) * 0.1
+        except traci.TraCIException:
+            return 0.0
+
+    def _calculate_reward(self) -> float:
+        """
+        Calculate reward based on traffic metrics.
+
+        Returns:
+            Reward value (default: 0.0)
+        """
+        if not self.enable_rl_control:
+            return 0.0
+
+        try:
+            reward = 0.0
+
+            # Negative reward for waiting time (minimize waiting)
+            if self.observation_config.get("reward_waiting_time", False):
+                reward += self._calculate_waiting_time_reward()
+
+            # Positive reward for throughput (maximize vehicles)
+            if self.observation_config.get("reward_throughput", False):
+                reward += self._calculate_throughput_reward()
+
+            return float(reward)
+
+        except Exception:
+            return 0.0
+
+    def _apply_action(self, action: Any):
+        """
+        Apply traffic light control action.
+
+        Args:
+            action: Action from action space
+        """
+        if not self.enable_rl_control or not self._tls_ids:
+            return
+
+        try:
+            if isinstance(self.action_space, spaces.Discrete):
+                # Single traffic light
+                if len(self._tls_ids) > 0:
+                    tls_id = self._tls_ids[0]
+                    phase = int(action)
+                    traci.trafficlight.setPhase(tls_id, phase)
+            elif isinstance(self.action_space, spaces.MultiDiscrete):
+                # Multiple traffic lights
+                action_array = np.asarray(action)
+                for i, tls_id in enumerate(self._tls_ids):
+                    if i < len(action_array):
+                        phase = int(action_array[i])
+                        traci.trafficlight.setPhase(tls_id, phase)
+        except Exception:
+            # Silently ignore action errors
+            pass
+
+    def _get_num_phases_from_tls(self, tls_id: str) -> int:
+        """Get number of phases for a traffic light."""
+        try:
+            program = traci.trafficlight.getCompleteRedYellowGreenDefinition(
+                tls_id
+            )
+            if program and len(program) > 0:
+                return len(program[0].phases)
+        except Exception:
+            pass
+        return 4  # Default
+
+    def _update_action_space_for_multiple_tls(self) -> None:
+        """Update action space when multiple traffic lights are present."""
+        if not self.enable_rl_control or not self._tls_ids:
+            return
+
+        num_tls = len(self._tls_ids)
+        if num_tls <= 1:
+            return
+
+        num_phases = self._get_num_phases_from_tls(self._tls_ids[0])
+        self.action_space = spaces.MultiDiscrete([num_phases] * num_tls)
+
+    def _initialize_simulation(self) -> None:
+        """Initialize CARLA and SUMO connections."""
+        # Clean up existing simulation if running
+        if self._initialized:
+            try:
+                self.cleanup()
+            except Exception:
+                pass
+
+        # Initialize CARLA and SUMO
+        self.connect_carla()
+        self.setup_sumo()
+
+        # Position camera
+        self.set_initial_camera_view()
+
+    def _collect_traffic_light_ids(self) -> None:
+        """Collect and update traffic light IDs from SUMO."""
+        try:
+            self._tls_ids = list(traci.trafficlight.getIDList())
+            self._update_action_space_for_multiple_tls()
+        except traci.TraCIException:
+            self._tls_ids = []
+
+    def reset(  # type: ignore[override]
+        self, seed: int | None = None, options: dict[str, Any] | None = None
+    ) -> tuple[np.ndarray, dict[str, Any]]:
+        """
+        Reset the environment to an initial state.
+
+        Args:
+            seed: Random seed for reproducibility
+            options: Additional options for reset
+
+        Returns:
+            Tuple of (observation, info)
+        """
+        # Initialize simulation
+        self._initialize_simulation()
+
+        # Get traffic light IDs and update action space
+        self._collect_traffic_light_ids()
+
+        # Reset state tracking
+        self._initialized = True
+        self._step_count = 0
+        self._start_time = time.time()
+
+        # Get initial observation
+        observation = self._get_observation()
+        info = {
+            "step": 0,
+            "time": _normalize_traci_value(traci.simulation.getTime()),
+            "num_vehicles": len(traci.vehicle.getIDList()),
+            "tls_ids": self._tls_ids,
+        }
+
+        return observation, info
+
+    def step(
+        self, action: Any
+    ) -> tuple[np.ndarray, float, bool, bool, dict[str, Any]]:
+        """
+        Run one timestep of the environment's dynamics.
+
+        Args:
+            action: Action to take in the environment
+
+        Returns:
+            Tuple of (observation, reward, terminated, truncated, info)
+        """
+        if not self._initialized:
+            raise RuntimeError(
+                "Environment not initialized. Call reset() first."
+            )
+
+        # Use run_steps to execute one step
+        result = self.run_steps(num_steps=1, action=action)
+
+        return (
+            result["observation"],
+            result["reward"],
+            result["done"],
+            result["truncated"],
+            result["info"],
+        )
+
+    def run_steps(
+        self, num_steps: int = 1, action: Any | None = None
+    ) -> dict[str, Any]:
+        """
+        Execute one or more simulation steps.
+
+        Args:
+            num_steps: Number of simulation steps to execute
+            action: Optional action to apply (if enable_rl_control=True)
+
+        Returns:
+            Dictionary with step results:
+                - observation: Current observation
+                - reward: Reward value
+                - done: Whether episode is done
+                - truncated: Whether episode was truncated
+                - info: Additional info dict
+        """
+        if not self._initialized:
+            raise RuntimeError(
+                "Simulation not initialized. "
+                "Call reset() or run_cosimulation() first."
+            )
+
+        # Apply action if provided
+        if action is not None and self.enable_rl_control:
+            self._apply_action(action)
+
+        # Execute steps
+        for _ in range(num_steps):
+            if not self._run_simulation_step(self._step_count):
+                break
+            self._step_count += 1
+
+        # Get observation and reward
+        observation = self._get_observation()
+        reward = self._calculate_reward()
+
+        # Check if done/truncated
+        done = False
+        truncated = False
+
+        # Check if simulation finished
+        try:
+            min_expected = traci.simulation.getMinExpectedNumber()
+            if isinstance(min_expected, tuple):
+                min_expected = min_expected[0] if len(min_expected) > 0 else 0
+            if min_expected <= 0:
+                done = True
+        except traci.TraCIException:
+            pass
+
+        # Check duration limit
+        if self._start_time is not None:
+            max_duration = self.observation_config.get("max_duration", None)
+            if max_duration and (time.time() - self._start_time) > max_duration:
+                truncated = True
+
+        info = {
+            "step": self._step_count,
+            "time": _normalize_traci_value(traci.simulation.getTime()),
+            "num_vehicles": len(traci.vehicle.getIDList()),
+        }
+
+        return {
+            "observation": observation,
+            "reward": reward,
+            "done": done,
+            "truncated": truncated,
+            "info": info,
+        }
+
     def run_cosimulation(self, duration: int | None = None):
         """
         Run the co-simulation.
@@ -592,11 +1028,23 @@ class CarlaSumoSync:
             print("Starting CARLA-SUMO Co-Simulation")
             print("=" * 60)
 
+            # Initialize simulation (equivalent to reset)
             self.connect_carla()
             self.setup_sumo()
 
             # Position camera to view the simulation area
             self.set_initial_camera_view()
+
+            # Initialize state tracking
+            self._initialized = True
+            self._step_count = 0
+            self._start_time = time.time()
+
+            # Get traffic light IDs
+            try:
+                self._tls_ids = list(traci.trafficlight.getIDList())
+            except traci.TraCIException:
+                self._tls_ids = []
 
             print("\nSimulation parameters:")
             print(f"  Step length: {self.step_length}s")
@@ -604,29 +1052,29 @@ class CarlaSumoSync:
             print(f"  TLS manager: {self.tls_manager}")
             print(f"  Sync vehicle lights: {self.sync_vehicle_lights}")
 
-            # Simulation loop
-            step = 0
-            start_time = time.time()
-
             print("\n▶ Simulation running... (Press Ctrl+C to stop)\n")
 
+            # Use run_steps in a loop
             while True:
                 # Check if simulation should stop
                 should_stop, stop_reason = self._check_simulation_done(
-                    duration, start_time
+                    duration, self._start_time
                 )
                 if should_stop:
                     print(stop_reason)
                     break
 
-                # Run simulation step
-                if not self._run_simulation_step(step):
+                # Run one step using run_steps
+                try:
+                    result = self.run_steps(num_steps=1, action=None)
+                    if result["done"] or result["truncated"]:
+                        break
+                except Exception as e:
+                    print(f"\n⚠ Error during simulation step: {e}")
                     break
 
                 # Print progress
-                self._print_progress(step, start_time)
-
-                step += 1
+                self._print_progress(self._step_count, self._start_time)
 
         except KeyboardInterrupt:
             print("\n\n⚠ Simulation interrupted by user")
@@ -634,13 +1082,33 @@ class CarlaSumoSync:
         finally:
             self.cleanup()
 
+    def render(self):
+        """
+        Render the environment (delegates to camera logic).
+
+        For CARLA-SUMO, rendering is handled by the CARLA viewer.
+        This method can be used to update camera position if needed.
+        """
+        if self.auto_camera and self._step_count % 5 == 0:
+            self.update_spectator_camera()
+
+    def close(self):
+        """
+        Close the environment and clean up resources.
+
+        This method is called by Gymnasium and delegates to cleanup().
+        """
+        self.cleanup()
+
     def cleanup(self):
         """Clean up resources."""
         print("\nCleaning up...")
 
         # Destroy all spawned vehicles in CARLA
         num_vehicles = len(self.vehicle_actors)
-        for vehicle_id in self.vehicle_actors.keys():
+        # Note: we'll modify the dict during iteration
+        vehicle_ids = list(self.vehicle_actors.keys())
+        for vehicle_id in vehicle_ids:
             self.remove_vehicle_from_carla(vehicle_id)
         if num_vehicles > 0:
             print(f"✓ Destroyed {num_vehicles} CARLA vehicles")
@@ -662,6 +1130,12 @@ class CarlaSumoSync:
         except Exception:
             # TraCI may already be closed, ignore
             pass
+
+        # Reset state tracking
+        self._initialized = False
+        self._step_count = 0
+        self._start_time = None
+        self._tls_ids = []
 
         print("Cleanup complete.\n")
 
