@@ -3,15 +3,25 @@ Multi-Agent PPO Training Script
 
 Trains multiple traffic light agents using Stable Baselines3 PPO
 with centralized training and decentralized execution (CTDE).
+
+Supports two modes:
+- SUMO-only (default): Fast, lightweight training
+- CARLA co-simulation: 3D visualization, camera support (--carla flag)
 """
 
 import argparse
 from pathlib import Path
 from typing import Any
 
+from gymnasium.wrappers import TimeLimit
 import numpy as np
+from tqdm import tqdm
 from stable_baselines3 import PPO
-from stable_baselines3.common.callbacks import CheckpointCallback, EvalCallback
+from stable_baselines3.common.callbacks import (
+    BaseCallback,
+    CheckpointCallback,
+    EvalCallback,
+)
 from stable_baselines3.common.monitor import Monitor
 from stable_baselines3.common.vec_env import SubprocVecEnv
 
@@ -21,6 +31,61 @@ from torch import nn
 
 from sim.carla.multi_agent_bridge import MultiAgentTrafficEnv
 from agents.multi_agent_utils import detect_compute_device
+
+
+class TqdmCallback(BaseCallback):
+    """
+    Custom callback for tqdm progress bar during training.
+
+    Provides detailed progress visualization with metrics like
+    reward and episode length updated in real-time.
+    """
+
+    def __init__(self, total_timesteps: int):
+        """
+        Initialize tqdm callback.
+
+        Args:
+            total_timesteps: Total number of timesteps for training
+        """
+        super().__init__()
+        self.pbar: tqdm | None = None
+        self.total_timesteps = total_timesteps
+
+    def _on_training_start(self) -> None:
+        """Called when training starts."""
+        self.pbar = tqdm(
+            total=self.total_timesteps,
+            desc="Training",
+            unit="step",
+            dynamic_ncols=True,
+        )
+
+    def _on_step(self) -> bool:
+        """
+        Called after each environment step.
+
+        Returns:
+            True to continue training, False to stop
+        """
+        if self.pbar is not None:
+            self.pbar.update(1)
+            # Add metrics to tqdm postfix
+            ep_buffer = self.model.ep_info_buffer
+            if ep_buffer is not None and len(ep_buffer) > 0:
+                last_ep = ep_buffer[-1]
+                self.pbar.set_postfix(
+                    {
+                        "reward": f"{last_ep['r']:.2f}",
+                        "ep_len": last_ep["l"],
+                    }
+                )
+        return True
+
+    def _on_training_end(self) -> None:
+        """Called when training ends."""
+        if self.pbar is not None:
+            self.pbar.close()
 
 
 class MultiAgentPPOWrapper(gym.Env):
@@ -41,12 +106,26 @@ class MultiAgentPPOWrapper(gym.Env):
         super().__init__()
         self.multi_agent_env = multi_agent_env
         self.agent_ids: list[str] = []
-        self._initialized = False
-        # Initialize dummy spaces (will be updated after first reset)
-        self.observation_space = spaces.Box(
-            low=-np.inf, high=np.inf, shape=(1,), dtype=np.float32
+
+        # Initialize environment once to determine correct spaces
+        # This is required because SB3 checks spaces before first reset()
+        obs_dict, _ = self.multi_agent_env.reset()
+        self.agent_ids = sorted(obs_dict.keys())
+
+        # Calculate total observation dimension
+        total_obs_dim = sum(
+            len(obs_dict[agent_id]) for agent_id in self.agent_ids
         )
-        self.action_space = spaces.Discrete(1)
+
+        # Set proper observation and action spaces
+        self.observation_space = spaces.Box(
+            low=-np.inf,
+            high=np.inf,
+            shape=(total_obs_dim,),
+            dtype=np.float32,
+        )
+        # Action space: one action per agent (4 phases each)
+        self.action_space = spaces.MultiDiscrete([4] * len(self.agent_ids))
 
     def reset(  # type: ignore[override]
         self,
@@ -57,22 +136,6 @@ class MultiAgentPPOWrapper(gym.Env):
         obs_dict, info_dict = self.multi_agent_env.reset(
             seed=seed, options=options
         )
-
-        if not self._initialized:
-            self.agent_ids = sorted(obs_dict.keys())
-            self._initialized = True
-            # Update observation and action spaces based on actual agents
-            total_obs_dim = sum(
-                len(obs_dict[agent_id]) for agent_id in self.agent_ids
-            )
-            self.observation_space = spaces.Box(
-                low=-np.inf,
-                high=np.inf,
-                shape=(total_obs_dim,),
-                dtype=np.float32,
-            )
-            # Action space: one action per agent
-            self.action_space = spaces.MultiDiscrete([4] * len(self.agent_ids))
 
         obs_list = [obs_dict[agent_id] for agent_id in self.agent_ids]
         batched_obs = np.concatenate(obs_list)
@@ -116,17 +179,17 @@ class MultiAgentPPOWrapper(gym.Env):
 def make_env(
     sumo_cfg_file: str,
     config: dict[str, Any],
-    rank: int = 0,
-    seed: int = 0,
-) -> MultiAgentPPOWrapper:
+    max_episode_steps: int = 1000,
+    gui: bool = False,
+) -> gym.Env:
     """
     Create a multi-agent environment.
 
     Args:
         sumo_cfg_file: Path to SUMO configuration file
         config: Configuration dictionary
-        rank: Environment rank (for parallel training)
-        seed: Random seed
+        max_episode_steps: Maximum number of steps per episode
+        gui: If True, use SUMO-GUI for visualization
 
     Returns:
         Wrapped multi-agent environment
@@ -140,10 +203,61 @@ def make_env(
         action_config=config.get("action_config", {}),
         video_config=config.get("video_config", {}),
         device=config.get("device"),
+        use_carla=config.get("use_carla", False),
+        gui=gui,
     )
 
     wrapped = MultiAgentPPOWrapper(env)
+    wrapped = TimeLimit(wrapped, max_episode_steps)
+
     return wrapped
+
+
+def evaluate(
+    sumo_cfg_file: str,
+    config: dict[str, Any],
+    model_path: str,
+    n_episodes: int = 5,
+) -> None:
+    """
+    Run trained model with SUMO-GUI visualization.
+
+    Args:
+        sumo_cfg_file: Path to SUMO configuration file
+        config: Configuration dictionary
+        model_path: Path to trained model
+        n_episodes: Number of episodes to run
+    """
+    print(f"\nLoading model from {model_path}")
+    model = PPO.load(model_path)
+
+    print(f"Running {n_episodes} episode(s) with SUMO-GUI...")
+    print("=" * 60)
+
+    for episode in range(n_episodes):
+        # Create environment with GUI enabled (fresh env each episode)
+        env = make_env(sumo_cfg_file, config, gui=True)
+
+        obs, _ = env.reset()
+        done = False
+        total_reward = 0.0
+        step = 0
+
+        while not done:
+            action, _ = model.predict(obs, deterministic=True)
+            obs, reward, done, truncated, _ = env.step(action)
+            total_reward += float(reward)
+            step += 1
+            done = done or truncated
+
+        env.close()
+        print(
+            f"Episode {episode + 1}/{n_episodes}: "
+            f"reward={total_reward:.2f}, steps={step}"
+        )
+
+    print("=" * 60)
+    print("Evaluation complete.")
 
 
 def train(
@@ -152,7 +266,8 @@ def train(
     output_dir: str = "models/multi_agent_ppo",
     total_timesteps: int = 100000,
     eval_freq: int = 10000,
-    n_eval_episodes: int = 5,
+    n_eval_episodes: int = 1,
+    skip_eval: bool = False,
 ) -> None:
     """
     Train multi-agent PPO agents.
@@ -164,6 +279,7 @@ def train(
         total_timesteps: Total training timesteps
         eval_freq: Evaluation frequency in timesteps
         n_eval_episodes: Number of episodes for evaluation
+        skip_eval: If True, skip evaluation during training (faster)
     """
     output_path = Path(output_dir)
     output_path.mkdir(parents=True, exist_ok=True)
@@ -174,14 +290,14 @@ def train(
     n_envs = config.get("n_envs", 1)
 
     if n_envs == 1:
-        env = make_env(sumo_cfg_file, config, seed=0)
+        env = make_env(sumo_cfg_file, config)
         env = Monitor(env, str(output_path / "monitor"))
     else:
         env = SubprocVecEnv(
             [
                 (
                     lambda rank, seed: lambda: Monitor(
-                        make_env(sumo_cfg_file, config, rank=rank, seed=seed),
+                        make_env(sumo_cfg_file, config),
                         str(output_path / f"monitor_{seed}"),
                     )
                 )(i, i)
@@ -236,31 +352,49 @@ def train(
         name_prefix="multi_agent_ppo",
     )
 
-    eval_env = make_env(sumo_cfg_file, config, seed=42)
-    eval_env = Monitor(eval_env, str(output_path / "eval_monitor"))
+    # Create tqdm callback for progress visualization
+    tqdm_callback = TqdmCallback(total_timesteps)
 
-    eval_callback = EvalCallback(
-        eval_env,
-        best_model_save_path=str(output_path / "best_model"),
-        log_path=str(output_path / "eval_logs"),
-        eval_freq=eval_freq,
-        n_eval_episodes=n_eval_episodes,
-        deterministic=True,
-        render=False,
-    )
+    # Build callback list
+    callbacks = [checkpoint_callback, tqdm_callback]
+
+    if not skip_eval:
+        eval_env = make_env(sumo_cfg_file, config)
+        eval_env = Monitor(eval_env, str(output_path / "eval_monitor"))
+
+        eval_callback = EvalCallback(
+            eval_env,
+            best_model_save_path=str(output_path / "best_model"),
+            log_path=str(output_path / "eval_logs"),
+            eval_freq=eval_freq,
+            n_eval_episodes=n_eval_episodes,
+            deterministic=True,
+            render=False,
+        )
+        callbacks.append(eval_callback)
+
+    use_carla = config.get("use_carla", False)
+    mode = "CARLA co-simulation" if use_carla else "SUMO-only"
 
     print(f"Starting training for {total_timesteps} timesteps...")
     print(f"Output directory: {output_path}")
+    print(f"Mode: {mode}")
+    if skip_eval:
+        print("Evaluation: disabled (--no-eval)")
+    else:
+        print(
+            f"Evaluation: every {eval_freq} steps, {n_eval_episodes} episode(s)"
+        )
 
     model.learn(
         total_timesteps=total_timesteps,
-        callback=[checkpoint_callback, eval_callback],
-        progress_bar=True,
+        callback=callbacks,
+        progress_bar=False,  # Disable SB3's built-in progress bar
     )
 
     model.save(str(output_path / "final_model"))
 
-    print(f"Training complete. Model saved to {output_path / 'final_model'}")
+    print(f"\nTraining complete. Model saved to {output_path / 'final_model'}")
 
 
 def main():
@@ -301,14 +435,46 @@ def main():
         "--eval-freq",
         type=int,
         default=10000,
-        help="Evaluation frequency in timesteps",
+        help="Evaluation frequency in timesteps (default: 10000)",
     )
 
     parser.add_argument(
         "--n-eval-episodes",
         type=int,
-        default=5,
-        help="Number of episodes for evaluation",
+        default=1,
+        help="Number of episodes for evaluation during training (default: 1)",
+    )
+
+    parser.add_argument(
+        "--carla",
+        action="store_true",
+        help="Enable CARLA co-simulation (default: SUMO-only mode)",
+    )
+
+    parser.add_argument(
+        "--train-only",
+        action="store_true",
+        help="Only train, don't run inference with GUI afterwards",
+    )
+
+    parser.add_argument(
+        "--eval-only",
+        action="store_true",
+        help="Only run evaluation with GUI (requires existing model)",
+    )
+
+    parser.add_argument(
+        "--gui-episodes",
+        type=int,
+        default=1,
+        help="Number of episodes to run in "
+        "GUI mode after training (default: 1)",
+    )
+
+    parser.add_argument(
+        "--no-eval",
+        action="store_true",
+        help="Disable evaluation during training (faster)",
     )
 
     args = parser.parse_args()
@@ -318,14 +484,77 @@ def main():
     with open(args.config, "r") as f:
         config = yaml.safe_load(f)
 
-    train(
-        sumo_cfg_file=args.sumo_cfg,
-        config=config,
-        output_dir=args.output_dir,
-        total_timesteps=args.total_timesteps,
-        eval_freq=args.eval_freq,
-        n_eval_episodes=args.n_eval_episodes,
-    )
+    # Override config with CLI flag if --carla is provided
+    if args.carla:
+        config["use_carla"] = True
+
+    output_path = Path(args.output_dir)
+
+    # Find best available model (prioritize final > best > checkpoint)
+    def find_model() -> Path | None:
+        candidates = [
+            output_path / "final_model.zip",
+            output_path / "best_model" / "best_model.zip",
+        ]
+        # Also check checkpoints
+        checkpoint_dir = output_path / "checkpoints"
+        if checkpoint_dir.exists():
+            checkpoints = sorted(
+                checkpoint_dir.glob("rl_model_*_steps.zip"), reverse=True
+            )
+            candidates.extend(checkpoints)
+
+        for path in candidates:
+            if path.exists():
+                return path
+        return None
+
+    model_path = find_model()
+
+    if args.train_only:
+        # Train-only mode: always train
+        train(
+            sumo_cfg_file=args.sumo_cfg,
+            config=config,
+            output_dir=args.output_dir,
+            total_timesteps=args.total_timesteps,
+            eval_freq=args.eval_freq,
+            n_eval_episodes=args.n_eval_episodes,
+            skip_eval=args.no_eval,
+        )
+    elif args.eval_only:
+        # Eval-only mode: just run GUI with existing model
+        if model_path:
+            print(f"Found model at {model_path}")
+            evaluate(
+                sumo_cfg_file=args.sumo_cfg,
+                config=config,
+                model_path=str(model_path),
+                n_episodes=args.gui_episodes,
+            )
+        else:
+            print(f"Error: No trained model found in {output_path}")
+            print("Run training first with --train-only")
+    else:
+        # Default mode: train first, then run GUI
+        print("Default mode: Training + GUI evaluation")
+        train(
+            sumo_cfg_file=args.sumo_cfg,
+            config=config,
+            output_dir=args.output_dir,
+            total_timesteps=args.total_timesteps,
+            eval_freq=args.eval_freq,
+            n_eval_episodes=args.n_eval_episodes,
+            skip_eval=args.no_eval,
+        )
+        model_path = find_model()
+        if model_path:
+            evaluate(
+                sumo_cfg_file=args.sumo_cfg,
+                config=config,
+                model_path=str(model_path),
+                n_episodes=args.gui_episodes,
+            )
 
 
 if __name__ == "__main__":

@@ -1,17 +1,19 @@
 """
-Multi-Agent Environment Wrapper for CARLA-SUMO Co-Simulation
+Multi-Agent Environment Wrapper for Traffic Simulation
 
 Provides multi-agent RL interface where each intersection is an
 independent agent. Supports centralized training with decentralized
 execution (CTDE).
+
+Supports two modes:
+- SUMO-only (default): Fast, lightweight training without CARLA
+- CARLA co-simulation: 3D visualization, camera support for YOLO integration
 """
 
 from typing import Any
 import numpy as np
 import traci
 from gymnasium import spaces
-
-from .bridge import CarlaSumoGymEnv
 
 
 class MultiAgentTrafficEnv:
@@ -33,6 +35,8 @@ class MultiAgentTrafficEnv:
         action_config: dict[str, Any] | None = None,
         video_config: dict[str, Any] | None = None,
         device: str | None = None,
+        use_carla: bool = False,
+        gui: bool = False,
         **kwargs,
     ):
         """
@@ -47,22 +51,43 @@ class MultiAgentTrafficEnv:
             action_config: Configuration for action spaces
             video_config: Configuration for video recording
             device: Compute device ('cuda', 'npu', 'cpu', or None for auto)
-            **kwargs: Additional parameters passed to CarlaSumoGymEnv
+            use_carla: If True, use CARLA co-simulation; if False, SUMO-only
+            gui: If True, use SUMO-GUI for visualization (SUMO-only mode)
+            **kwargs: Additional parameters passed to base environment
         """
         self.sumo_cfg_file = sumo_cfg_file
         self.enable_ctde = enable_ctde
         self.neighbor_radius = neighbor_radius
         self.device = device
+        self.use_carla = use_carla
+        self.gui = gui
 
-        self.base_env = CarlaSumoGymEnv(
-            sumo_cfg_file=sumo_cfg_file,
-            enable_rl_control=True,
-            observation_config=observation_config or {},
-            action_config=action_config or {},
-            video_config=video_config or {},
-            device=device,
-            **kwargs,
-        )
+        # Conditionally import and instantiate the appropriate environment
+        if use_carla:
+            from .bridge import CarlaSumoGymEnv
+
+            self.base_env = CarlaSumoGymEnv(
+                sumo_cfg_file=sumo_cfg_file,
+                enable_rl_control=True,
+                observation_config=observation_config or {},
+                action_config=action_config or {},
+                video_config=video_config or {},
+                device=device,
+                **kwargs,
+            )
+        else:
+            from sim.sumo.gym_env import SumoGymEnv
+
+            self.base_env = SumoGymEnv(
+                sumo_cfg_file=sumo_cfg_file,
+                enable_rl_control=True,
+                observation_config=observation_config or {},
+                action_config=action_config or {},
+                video_config=video_config or {},
+                device=device,
+                gui=gui,
+                **kwargs,
+            )
 
         self.num_agents = num_agents
         self.agent_ids: list[str] = []

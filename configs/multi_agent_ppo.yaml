@@ -1,6 +1,7 @@
 # Multi-Agent PPO Training Configuration
 
 # Environment Configuration
+use_carla: false  # false = SUMO-only (fast), true = CARLA co-sim (for cameras/YOLO)
 num_agents: null  # null = auto-detect from SUMO network
 enable_ctde: true  # Centralized Training with Decentralized Execution
 neighbor_radius: 1  # Maximum distance for neighbor detection
