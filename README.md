@@ -16,6 +16,9 @@ This repository implements a **Multi-Agent System (MAS) for adaptive traffic lig
   - Fixed-time and actuated baseline controllers.
   - RL-based adaptive controllers (decentralized, centralized, or hybrid).
 - **Multi-Agent Coordination:** Neighbor communication protocols and CTDE setups.
+- **Multi-Agent PPO:** Train multiple intersection agents simultaneously with Stable Baselines3.
+- **GPU/NPU Acceleration:** Automatic device detection and acceleration for faster training.
+- **Video Recording:** Record evaluation episodes for visualization and analysis.
 - **Data Integration:** Supports NGSIM, METR-LA, NYC Taxi, and synthetic traffic generators.
 - **Metrics & Evaluation:** Average waiting time, travel time, throughput, emissions, and fairness.
 
@@ -65,6 +68,26 @@ python data/generate_routes.py --config configs/traffic_data.yaml
 ```bash
 python agents/train_agent.py --config configs/rl_agent.yaml
 ```
+
+### 8. Train Multi-Agent PPO
+
+Train multiple traffic light agents using centralized training with decentralized execution (CTDE):
+
+```bash
+python agents/train_multi_agent_ppo.py \
+    --sumo-cfg sim/intersections/simple4/simple4.sumocfg \
+    --config configs/multi_agent_ppo.yaml \
+    --output-dir models/multi_agent_ppo \
+    --total-timesteps 100000
+```
+
+**Features:**
+
+- **Multi-Agent Support**: Each intersection is an independent agent
+- **CTDE**: Centralized training with decentralized execution
+- **GPU/NPU Acceleration**: Automatic device detection and acceleration
+- **Video Recording**: Record evaluation episodes automatically
+- **Neighbor Communication**: Agents can observe adjacent intersections during training
 
 ## Repository Structure
 

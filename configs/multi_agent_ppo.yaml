@@ -1,0 +1,48 @@
+# Multi-Agent PPO Training Configuration
+
+# Environment Configuration
+num_agents: null  # null = auto-detect from SUMO network
+enable_ctde: true  # Centralized Training with Decentralized Execution
+neighbor_radius: 1  # Maximum distance for neighbor detection
+
+# Observation Configuration
+observation_config:
+  shape: [10]  # Base observation shape per agent
+  low: 0.0
+  high: 1000.0
+  include_lane_metrics: true
+  reward_waiting_time: true
+  reward_throughput: true
+  max_duration: 3600.0  # Maximum episode duration in seconds
+
+# Action Configuration
+action_config:
+  num_phases: 4  # Number of traffic light phases
+  num_traffic_lights: null  # null = auto-detect
+
+# Video Recording Configuration
+video_config:
+  enabled: false  # Enable video recording during evaluation
+  output_path: "videos"  # Directory for video output
+  format: "mp4"  # Video format (mp4, avi)
+
+# Device Configuration
+device: null  # null = auto-detect (cuda/npu/cpu)
+
+# Training Configuration
+n_envs: 1  # Number of parallel environments
+learning_rate: 3.0e-4
+n_steps: 2048  # Steps per update
+batch_size: 64
+n_epochs: 10  # Number of optimization epochs per update
+gamma: 0.99  # Discount factor
+gae_lambda: 0.95  # GAE lambda parameter
+clip_range: 0.2  # PPO clip range
+ent_coef: 0.01  # Entropy coefficient
+vf_coef: 0.5  # Value function coefficient
+max_grad_norm: 0.5  # Maximum gradient norm
+
+# Policy Network Configuration
+policy_kwargs:
+  net_arch: [64, 64]  # Network architecture
+  activation_fn: "tanh"  # Activation function
