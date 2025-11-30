@@ -208,20 +208,45 @@ class CarlaSumoSync(gym.Env):
             with open(xodr_file, "r") as f:
                 opendrive_content = f.read()
 
-            self.world = self.client.generate_opendrive_world(
-                opendrive_content,
-                carla.OpendriveGenerationParameters(
-                    vertex_distance=2.0,
-                    max_road_length=50.0,
-                    wall_height=0.0,
-                    additional_width=0.6,
-                    smooth_junctions=True,
-                    enable_mesh_visibility=True,
-                ),
-            )
-            print("✓ SUMO network loaded as CARLA map!")
-            print("  Generated procedural 3D mesh from OpenDRIVE")
-            return True
+            # Increase timeout for world generation (can take 30+ seconds)
+            # Store original timeout (default is 10.0 seconds)
+            original_timeout = 10.0
+            self.client.set_timeout(60.0)  # 60 seconds for world generation
+            
+            try:
+                print("  Generating 3D world from OpenDRIVE (this may take 30-60 seconds)...")
+                self.world = self.client.generate_opendrive_world(
+                    opendrive_content,
+                    carla.OpendriveGenerationParameters(
+                        vertex_distance=2.0,
+                        max_road_length=50.0,
+                        wall_height=0.0,
+                        additional_width=0.6,
+                        smooth_junctions=True,
+                        enable_mesh_visibility=True,
+                    ),
+                )
+                print("✓ SUMO network loaded as CARLA map!")
+                print("  Generated procedural 3D mesh from OpenDRIVE")
+                return True
+            except RuntimeError as e:
+                error_msg = str(e)
+                if "time-out" in error_msg.lower() or "timeout" in error_msg.lower():
+                    print(f"✗ Timeout while generating CARLA world: {error_msg}")
+                    print("\n  This usually means:")
+                    print("  1. CARLA server is not running or not ready")
+                    print("  2. CARLA server is overloaded or slow")
+                    print("  3. The OpenDRIVE file is too complex")
+                    print("\n  Please ensure CARLA is running and try again.")
+                else:
+                    print(f"✗ Error generating CARLA world: {error_msg}")
+                return False
+            except Exception as e:
+                print(f"✗ Unexpected error loading OpenDRIVE: {e}")
+                return False
+            finally:
+                # Restore original timeout
+                self.client.set_timeout(original_timeout)
 
         print(f"✗ OpenDRIVE file not found: {xodr_file}")
         print("  Generating from SUMO network...")
@@ -246,19 +271,43 @@ class CarlaSumoSync(gym.Env):
                     opendrive_content = f.read()
 
                 if self.client is not None:
-                    self.world = self.client.generate_opendrive_world(
-                        opendrive_content,
-                        carla.OpendriveGenerationParameters(
-                            vertex_distance=2.0,
-                            max_road_length=50.0,
-                            wall_height=0.0,
-                            additional_width=0.6,
-                            smooth_junctions=True,
-                            enable_mesh_visibility=True,
-                        ),
-                    )
-                    print("✓ SUMO network loaded as CARLA map!")
-                    return True
+                    # Increase timeout for world generation (can take 30+ seconds)
+                    original_timeout = self.client.get_timeout()
+                    self.client.set_timeout(60.0)  # 60 seconds for world generation
+                    
+                    try:
+                        print("  Generating 3D world from OpenDRIVE (this may take 30-60 seconds)...")
+                        self.world = self.client.generate_opendrive_world(
+                            opendrive_content,
+                            carla.OpendriveGenerationParameters(
+                                vertex_distance=2.0,
+                                max_road_length=50.0,
+                                wall_height=0.0,
+                                additional_width=0.6,
+                                smooth_junctions=True,
+                                enable_mesh_visibility=True,
+                            ),
+                        )
+                        print("✓ SUMO network loaded as CARLA map!")
+                        return True
+                    except RuntimeError as e:
+                        error_msg = str(e)
+                        if "time-out" in error_msg.lower() or "timeout" in error_msg.lower():
+                            print(f"✗ Timeout while generating CARLA world: {error_msg}")
+                            print("\n  This usually means:")
+                            print("  1. CARLA server is not running or not ready")
+                            print("  2. CARLA server is overloaded or slow")
+                            print("  3. The OpenDRIVE file is too complex")
+                            print("\n  Please ensure CARLA is running and try again.")
+                        else:
+                            print(f"✗ Error generating CARLA world: {error_msg}")
+                        return False
+                    except Exception as e:
+                        print(f"✗ Unexpected error loading OpenDRIVE: {e}")
+                        return False
+                    finally:
+                        # Restore original timeout
+                        self.client.set_timeout(original_timeout)
             except Exception as e:
                 print(f"✗ Failed to generate OpenDRIVE: {e}")
                 print("  Falling back to default map...")
@@ -337,6 +386,30 @@ class CarlaSumoSync(gym.Env):
         )
         self.client = carla.Client(self.carla_host, self.carla_port)
         self.client.set_timeout(10.0)
+
+        # Verify CARLA is responding before proceeding (with retries)
+        max_retries = 5
+        retry_delay = 2.0
+        for attempt in range(max_retries):
+            try:
+                _ = self.client.get_world()
+                print("✓ CARLA server is responding")
+                break
+            except RuntimeError as e:
+                error_msg = str(e)
+                if "time-out" in error_msg.lower() or "timeout" in error_msg.lower():
+                    if attempt < max_retries - 1:
+                        print(f"  Waiting for CARLA to be ready... (attempt {attempt + 1}/{max_retries})")
+                        time.sleep(retry_delay)
+                        continue
+                    else:
+                        raise RuntimeError(
+                            f"CARLA server is not responding at {self.carla_host}:{self.carla_port} "
+                            f"after {max_retries} attempts. "
+                            "Please ensure CARLA is running and try again.\n"
+                            f"Error: {error_msg}"
+                        ) from e
+                raise
 
         # Load SUMO network as OpenDRIVE if requested
         if self.use_sumo_network:
@@ -629,6 +702,14 @@ class CarlaSumoSync(gym.Env):
         self, duration: int | None, start_time: float
     ) -> tuple[bool, str]:
         """Check if simulation should stop. Returns (should_stop, reason)."""
+        # Ensure duration is a number, not a string
+        if duration is not None:
+            try:
+                duration = int(duration)
+            except (ValueError, TypeError):
+                # If duration is not a valid number, ignore it
+                duration = None
+        
         if duration and (time.time() - start_time) > duration:
             return True, f"\n✓ Simulation completed ({duration}s)"
 
