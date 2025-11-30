@@ -10,7 +10,7 @@ import sys
 import time
 import argparse
 import random
-from typing import Any
+from typing import Any, Optional
 import numpy as np
 import traci
 import gymnasium as gym
@@ -459,13 +459,14 @@ class CarlaSumoSync(gym.Env):
             print("2. Configuration file exists: " + self.sumo_cfg)
             raise
 
-    def spawn_vehicle_in_carla(self, sumo_vehicle_id: str, position: tuple):
+    def spawn_vehicle_in_carla(self, sumo_vehicle_id: str, position: tuple, angle: float = 0.0):
         """
         Spawn a vehicle in CARLA corresponding to a SUMO vehicle.
 
         Args:
             sumo_vehicle_id: SUMO vehicle ID
             position: (x, y, z) position from SUMO
+            angle: Heading angle in degrees from SUMO (0=north, increases clockwise)
         """
         if sumo_vehicle_id in self.vehicle_actors:
             return  # Already spawned
@@ -473,15 +474,36 @@ class CarlaSumoSync(gym.Env):
         if self.blueprint_library is None:
             return
         try:
-            # Get a vehicle blueprint
+            # Get vehicle blueprints - filter to only regular cars (exclude trucks, buses, etc.)
             vehicle_blueprints = self.blueprint_library.filter("vehicle.*")
-            vehicle_bp = random.choice(
-                [
+            
+            # Filter to only regular cars (exclude trucks, buses, emergency vehicles)
+            car_blueprints = [
+                bp
+                for bp in vehicle_blueprints
+                if int(bp.get_attribute("number_of_wheels")) == 4
+                and "truck" not in bp.id.lower()
+                and "bus" not in bp.id.lower()
+                and "fire" not in bp.id.lower()
+                and "police" not in bp.id.lower()
+                and "ambulance" not in bp.id.lower()
+                and "bicycle" not in bp.id.lower()
+                and "motorcycle" not in bp.id.lower()
+            ]
+            
+            # Fallback to any 4-wheel vehicle if no cars found
+            if not car_blueprints:
+                car_blueprints = [
                     bp
                     for bp in vehicle_blueprints
                     if int(bp.get_attribute("number_of_wheels")) == 4
                 ]
-            )
+            
+            if not car_blueprints:
+                print(f"⚠ No suitable vehicle blueprints found for {sumo_vehicle_id}")
+                return
+            
+            vehicle_bp = random.choice(car_blueprints)
 
             # Set random color for visibility
             if vehicle_bp.has_attribute("color"):
@@ -497,8 +519,17 @@ class CarlaSumoSync(gym.Env):
             carla_y = -position[1] + self.offset_y  # Flip Y axis
             carla_z = 0.5  # Spawn slightly above ground
 
+            # Convert SUMO angle to CARLA yaw
+            # SUMO angle: 0=north, increases clockwise
+            # CARLA yaw: 0=east, increases counter-clockwise
+            # To fix opposite rotation: negate the conversion
+            # Original: carla_yaw = 90 - angle (was causing opposite rotation)
+            # Fixed: carla_yaw = -(90 - angle) = angle - 90
+            carla_yaw = angle - 90.0
+
             transform = carla.Transform(
-                carla.Location(x=carla_x, y=carla_y, z=carla_z)
+                carla.Location(x=carla_x, y=carla_y, z=carla_z),
+                carla.Rotation(yaw=carla_yaw),
             )
 
             # Spawn vehicle
@@ -510,7 +541,7 @@ class CarlaSumoSync(gym.Env):
                 self.vehicle_actors[sumo_vehicle_id] = actor
                 print(
                     f"✓ Spawned vehicle {sumo_vehicle_id} at CARLA "
-                    f"({carla_x:.1f}, {carla_y:.1f})"
+                    f"({carla_x:.1f}, {carla_y:.1f}) with yaw {carla_yaw:.1f}°"
                 )
 
         except Exception as e:
@@ -528,7 +559,7 @@ class CarlaSumoSync(gym.Env):
             angle: Heading angle in degrees
         """
         if sumo_vehicle_id not in self.vehicle_actors:
-            self.spawn_vehicle_in_carla(sumo_vehicle_id, position)
+            self.spawn_vehicle_in_carla(sumo_vehicle_id, position, angle)
             return
 
         actor = self.vehicle_actors[sumo_vehicle_id]
@@ -541,8 +572,10 @@ class CarlaSumoSync(gym.Env):
 
             # SUMO angle: 0=north, increases clockwise
             # CARLA yaw: 0=east, increases counter-clockwise
-            # Convert: CARLA_yaw = 90 - SUMO_angle
-            carla_yaw = 90.0 - angle
+            # To fix opposite rotation: negate the conversion
+            # Original: carla_yaw = 90 - angle (was causing opposite rotation)
+            # Fixed: carla_yaw = -(90 - angle) = angle - 90
+            carla_yaw = angle - 90.0
 
             # Update transform
             transform = carla.Transform(
@@ -597,52 +630,6 @@ class CarlaSumoSync(gym.Env):
             except traci.TraCIException:
                 # Vehicle might have left the simulation
                 continue
-
-    def adjust_traffic_light_height(self, z_offset: float = -1.5):
-        """
-        Adjust the height of all traffic lights in the world.
-
-        Args:
-            z_offset: Vertical offset to apply
-                      (negative = lower, positive = higher)
-                     Default: -1.5 meters (lowers traffic lights)
-
-        To change the height, modify the z_offset parameter in connect_carla()
-        """
-        if self.world is None:
-            return
-        traffic_lights = self.world.get_actors().filter(
-            "traffic.traffic_light*"
-        )
-
-        if not traffic_lights:
-            print("  ⚠ No traffic lights found in the world")
-            return
-
-        adjusted_count = 0
-        for tl in traffic_lights:
-            try:
-                current_transform = tl.get_transform()
-                new_transform = carla.Transform(
-                    carla.Location(
-                        x=current_transform.location.x,
-                        y=current_transform.location.y,
-                        z=current_transform.location.z
-                        + z_offset,  # Apply offset
-                    ),
-                    current_transform.rotation,
-                )
-                tl.set_transform(new_transform)
-                adjusted_count += 1
-            except Exception:
-                continue
-
-        if adjusted_count > 0:
-            print(
-                f"  ✓ Adjusted {adjusted_count} traffic light(s) by {z_offset}m"
-            )
-        else:
-            print("  ⚠ Could not adjust traffic lights")
 
     def set_initial_camera_view(self):
         """Position camera at start to view the simulation area."""
