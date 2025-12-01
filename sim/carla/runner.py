@@ -82,7 +82,7 @@ def _is_carla_running(host: str = "localhost", port: int = 2000, verbose: bool =
         return False
 
 
-def _launch_carla(carla_root: str) -> bool:
+def _launch_carla(carla_root: str, enable_video_recording: bool = False) -> bool:
     """Launch CARLA server automatically."""
     system = platform.system()
     carla_exe = None
@@ -126,24 +126,46 @@ def _launch_carla(carla_root: str) -> bool:
         # Launch CARLA in the background
         if system == "Windows":
             # Launch CARLA with window visible
-            subprocess.Popen(
-                [
-                    carla_exe,
-                    "-d3d11",
-                    "-carla-server",
-                    "-benchmark",
-                    "-fps=30",
-                    "-windowed",
+            launch_args = [
+                carla_exe,
+                "-d3d11",
+                "-carla-server",
+                "-benchmark",
+                "-fps=30",
+                "-windowed",
+            ]
+            
+            # Use low graphics quality when video recording for maximum performance
+            if enable_video_recording:
+                launch_args.extend([
+                    "-quality-level=Low",
+                    "-ResX=854",  # Match video resolution
+                    "-ResY=480",
+                ])
+                print("[INFO] Launching CARLA with low graphics quality for maximum recording speed")
+            else:
+                launch_args.extend([
                     "-ResX=1280",
                     "-ResY=720",
-                ],
+                ])
+            
+            subprocess.Popen(
+                launch_args,
                 cwd=carla_root,
                 creationflags=subprocess.CREATE_NEW_PROCESS_GROUP,
             )
         else:
             # Linux/Mac
+            launch_args = [carla_exe, "-carla-server", "-benchmark", "-fps=30"]
+            if enable_video_recording:
+                launch_args.extend([
+                    "-quality-level=Low",
+                    "-ResX=854",
+                    "-ResY=480",
+                ])
+                print("[INFO] Launching CARLA with low graphics quality for maximum recording speed")
             subprocess.Popen(
-                [carla_exe, "-carla-server", "-benchmark", "-fps=30"],
+                launch_args,
                 cwd=carla_root,
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
@@ -249,9 +271,12 @@ def run_in_carla(
     is_running = _is_carla_running(verbose=False)  # Set to True for debugging
     if is_running:
         print("✓ CARLA server is already running - will use existing instance")
+        if enable_video_recording:
+            print("[INFO] Note: CARLA was already running. For maximum recording speed,")
+            print("      consider restarting CARLA with: -quality-level=Low")
     else:
         print("CARLA server is not running. Attempting to launch...")
-        _launch_carla(carla_root)
+        _launch_carla(carla_root, enable_video_recording=enable_video_recording)
 
     # Import and run co-simulation
     try:
@@ -269,9 +294,12 @@ def run_in_carla(
         if video_dir is None and experiment_name and enable_video_recording:
             video_dir = f"./data/{experiment_name}"
 
+        # Use bigger step_length when video recording for maximum speed
+        step_length = 1 if enable_video_recording else 0.05
+        
         cosim = CarlaSumoSync(
             sumo_cfg_file=str(sumo_cfg),
-            step_length=0.05,
+            step_length=step_length,
             tls_manager="sumo",
             auto_camera=False,  # Let user control camera freely
             use_sumo_network=use_sumo_network,
