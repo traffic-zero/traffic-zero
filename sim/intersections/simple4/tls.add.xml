@@ -1,9 +1,9 @@
 <?xml version='1.0' encoding='utf-8'?>
 <additional>
-    <tlLogic id="n0" type="static" programID="custom" offset="0">
-        <phase duration="20" state="GGGGrrrrGGGGrrrr" />
-        <phase duration="4" state="yyyyrrrryyyyrrrr" />
-        <phase duration="20" state="rrrrGGGGrrrrGGGG" />
-        <phase duration="4" state="rrrryyyyrrrryyyy" />
+    <tlLogic id="n0" type="static" programID="rush_hour" offset="0">
+        <phase duration="35" state="GGGGrrrrGGGGrrrr" />
+        <phase duration="3" state="yyyyrrrryyyyrrrr" />
+        <phase duration="35" state="rrrrGGGGrrrrGGGG" />
+        <phase duration="3" state="rrrryyyyrrrryyyy" />
     </tlLogic>
 </additional>

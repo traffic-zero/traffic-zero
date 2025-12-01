@@ -10,7 +10,7 @@ import sys
 import time
 import argparse
 import random
-from typing import Any
+from typing import Any, Optional
 import numpy as np
 import traci
 import gymnasium as gym
@@ -45,6 +45,17 @@ except ImportError:
         f"CARLA_ROOT is set to: {carla_root}\n"
         "Make sure CARLA is installed at that location."
     )
+
+# Import video recorder modules (optional dependencies)
+try:
+    from .video_recorder import VideoRecorder
+except (ImportError, Exception):
+    VideoRecorder = None
+
+try:
+    from .recorder_video import RecorderVideoGenerator
+except (ImportError, Exception):
+    RecorderVideoGenerator = None
 
 
 def _normalize_traci_value(value: float | tuple | None) -> float:
@@ -124,6 +135,20 @@ class CarlaSumoSync(gym.Env):
                         int, number of TLS
                         (default: 1)
                     (None = use defaults)
+                - enable_video_recording:
+                    Enable video recording (default: False)
+                - video_output_dir:
+                    Directory to save video files (default: None, uses data/)
+                - video_width:
+                    Video width in pixels (default: 854)
+                - video_height:
+                    Video height in pixels (default: 480)
+                - video_fps:
+                    Video frame rate (default: 30)
+                - video_duration:
+                    Duration in seconds to record video (default: None = record for entire simulation duration)
+                - experiment_name:
+                    Experiment name for video filename (default: None)
         """
         super().__init__()
 
@@ -143,6 +168,15 @@ class CarlaSumoSync(gym.Env):
         self.observation_config = kwargs.get("observation_config", {})
         self.action_config = kwargs.get("action_config", {})
 
+        # Video recording parameters
+        self.enable_video_recording = kwargs.get("enable_video_recording", False)
+        self.video_output_dir = kwargs.get("video_output_dir", None)
+        self.video_width = kwargs.get("video_width", 854)
+        self.video_height = kwargs.get("video_height", 480)
+        self.video_fps = kwargs.get("video_fps", 30)
+        self.video_duration = kwargs.get("video_duration", None)
+        self.experiment_name = kwargs.get("experiment_name", None)
+
         self.client = None
         self.world = None
         self.blueprint_library = None
@@ -159,6 +193,10 @@ class CarlaSumoSync(gym.Env):
         self._start_time: float | None = None
         self._tls_ids: list[str] = []
         self._tls_controller: Any | None = None
+
+        # Video recorder (using CARLA Recorder API)
+        self.video_recorder: Optional[Any] = None  # RecorderVideoGenerator instance
+        self._recorder_start_time: float | None = None
 
         # Initialize action and observation spaces
         self._initialize_spaces()
@@ -208,20 +246,45 @@ class CarlaSumoSync(gym.Env):
             with open(xodr_file, "r") as f:
                 opendrive_content = f.read()
 
-            self.world = self.client.generate_opendrive_world(
-                opendrive_content,
-                carla.OpendriveGenerationParameters(
-                    vertex_distance=2.0,
-                    max_road_length=50.0,
-                    wall_height=0.0,
-                    additional_width=0.6,
-                    smooth_junctions=True,
-                    enable_mesh_visibility=True,
-                ),
-            )
-            print("✓ SUMO network loaded as CARLA map!")
-            print("  Generated procedural 3D mesh from OpenDRIVE")
-            return True
+            # Increase timeout for world generation (can take 30+ seconds)
+            # Store original timeout (default is 10.0 seconds)
+            original_timeout = 10.0
+            self.client.set_timeout(60.0)  # 60 seconds for world generation
+            
+            try:
+                print("  Generating 3D world from OpenDRIVE (this may take 30-60 seconds)...")
+                self.world = self.client.generate_opendrive_world(
+                    opendrive_content,
+                    carla.OpendriveGenerationParameters(
+                        vertex_distance=2.0,
+                        max_road_length=50.0,
+                        wall_height=0.0,
+                        additional_width=0.6,
+                        smooth_junctions=True,
+                        enable_mesh_visibility=True,
+                    ),
+                )
+                print("✓ SUMO network loaded as CARLA map!")
+                print("  Generated procedural 3D mesh from OpenDRIVE")
+                return True
+            except RuntimeError as e:
+                error_msg = str(e)
+                if "time-out" in error_msg.lower() or "timeout" in error_msg.lower():
+                    print(f"✗ Timeout while generating CARLA world: {error_msg}")
+                    print("\n  This usually means:")
+                    print("  1. CARLA server is not running or not ready")
+                    print("  2. CARLA server is overloaded or slow")
+                    print("  3. The OpenDRIVE file is too complex")
+                    print("\n  Please ensure CARLA is running and try again.")
+                else:
+                    print(f"✗ Error generating CARLA world: {error_msg}")
+                return False
+            except Exception as e:
+                print(f"✗ Unexpected error loading OpenDRIVE: {e}")
+                return False
+            finally:
+                # Restore original timeout
+                self.client.set_timeout(original_timeout)
 
         print(f"✗ OpenDRIVE file not found: {xodr_file}")
         print("  Generating from SUMO network...")
@@ -246,19 +309,45 @@ class CarlaSumoSync(gym.Env):
                     opendrive_content = f.read()
 
                 if self.client is not None:
-                    self.world = self.client.generate_opendrive_world(
-                        opendrive_content,
-                        carla.OpendriveGenerationParameters(
-                            vertex_distance=2.0,
-                            max_road_length=50.0,
-                            wall_height=0.0,
-                            additional_width=0.6,
-                            smooth_junctions=True,
-                            enable_mesh_visibility=True,
-                        ),
-                    )
-                    print("✓ SUMO network loaded as CARLA map!")
-                    return True
+                    # Increase timeout for world generation (can take 30+ seconds)
+                    # Note: CARLA Client doesn't have get_timeout(), so we'll just set it
+                    # Default timeout is usually 10.0 seconds
+                    original_timeout = 10.0  # Default CARLA client timeout
+                    self.client.set_timeout(60.0)  # 60 seconds for world generation
+                    
+                    try:
+                        print("  Generating 3D world from OpenDRIVE (this may take 30-60 seconds)...")
+                        self.world = self.client.generate_opendrive_world(
+                            opendrive_content,
+                            carla.OpendriveGenerationParameters(
+                                vertex_distance=2.0,
+                                max_road_length=50.0,
+                                wall_height=0.0,
+                                additional_width=0.6,
+                                smooth_junctions=True,
+                                enable_mesh_visibility=True,
+                            ),
+                        )
+                        print("✓ SUMO network loaded as CARLA map!")
+                        return True
+                    except RuntimeError as e:
+                        error_msg = str(e)
+                        if "time-out" in error_msg.lower() or "timeout" in error_msg.lower():
+                            print(f"✗ Timeout while generating CARLA world: {error_msg}")
+                            print("\n  This usually means:")
+                            print("  1. CARLA server is not running or not ready")
+                            print("  2. CARLA server is overloaded or slow")
+                            print("  3. The OpenDRIVE file is too complex")
+                            print("\n  Please ensure CARLA is running and try again.")
+                        else:
+                            print(f"✗ Error generating CARLA world: {error_msg}")
+                        return False
+                    except Exception as e:
+                        print(f"✗ Unexpected error loading OpenDRIVE: {e}")
+                        return False
+                    finally:
+                        # Restore original timeout
+                        self.client.set_timeout(original_timeout)
             except Exception as e:
                 print(f"✗ Failed to generate OpenDRIVE: {e}")
                 print("  Falling back to default map...")
@@ -320,7 +409,15 @@ class CarlaSumoSync(gym.Env):
 
         settings = self.world.get_settings()
         settings.synchronous_mode = True
-        settings.fixed_delta_seconds = self.step_length
+        
+        # Optimize for maximum speed when video recording is enabled
+        if self.enable_video_recording:
+            # Remove fixed_delta_seconds to allow CARLA to run as fast as possible
+            settings.fixed_delta_seconds = None  # None = unlimited speed
+            print("[INFO] Video recording enabled - using MAXIMUM simulation speed (unlimited)")
+        else:
+            settings.fixed_delta_seconds = self.step_length
+        
         self.world.apply_settings(settings)
 
         self.blueprint_library = self.world.get_blueprint_library()
@@ -337,6 +434,30 @@ class CarlaSumoSync(gym.Env):
         )
         self.client = carla.Client(self.carla_host, self.carla_port)
         self.client.set_timeout(10.0)
+
+        # Verify CARLA is responding before proceeding (with retries)
+        max_retries = 5
+        retry_delay = 2.0
+        for attempt in range(max_retries):
+            try:
+                _ = self.client.get_world()
+                print("✓ CARLA server is responding")
+                break
+            except RuntimeError as e:
+                error_msg = str(e)
+                if "time-out" in error_msg.lower() or "timeout" in error_msg.lower():
+                    if attempt < max_retries - 1:
+                        print(f"  Waiting for CARLA to be ready... (attempt {attempt + 1}/{max_retries})")
+                        time.sleep(retry_delay)
+                        continue
+                    else:
+                        raise RuntimeError(
+                            f"CARLA server is not responding at {self.carla_host}:{self.carla_port} "
+                            f"after {max_retries} attempts. "
+                            "Please ensure CARLA is running and try again.\n"
+                            f"Error: {error_msg}"
+                        ) from e
+                raise
 
         # Load SUMO network as OpenDRIVE if requested
         if self.use_sumo_network:
@@ -386,13 +507,14 @@ class CarlaSumoSync(gym.Env):
             print("2. Configuration file exists: " + self.sumo_cfg)
             raise
 
-    def spawn_vehicle_in_carla(self, sumo_vehicle_id: str, position: tuple):
+    def spawn_vehicle_in_carla(self, sumo_vehicle_id: str, position: tuple, angle: float = 0.0):
         """
         Spawn a vehicle in CARLA corresponding to a SUMO vehicle.
 
         Args:
             sumo_vehicle_id: SUMO vehicle ID
             position: (x, y, z) position from SUMO
+            angle: Heading angle in degrees from SUMO (0=north, increases clockwise)
         """
         if sumo_vehicle_id in self.vehicle_actors:
             return  # Already spawned
@@ -400,15 +522,36 @@ class CarlaSumoSync(gym.Env):
         if self.blueprint_library is None:
             return
         try:
-            # Get a vehicle blueprint
+            # Get vehicle blueprints - filter to only regular cars (exclude trucks, buses, etc.)
             vehicle_blueprints = self.blueprint_library.filter("vehicle.*")
-            vehicle_bp = random.choice(
-                [
+            
+            # Filter to only regular cars (exclude trucks, buses, emergency vehicles)
+            car_blueprints = [
+                bp
+                for bp in vehicle_blueprints
+                if int(bp.get_attribute("number_of_wheels")) == 4
+                and "truck" not in bp.id.lower()
+                and "bus" not in bp.id.lower()
+                and "fire" not in bp.id.lower()
+                and "police" not in bp.id.lower()
+                and "ambulance" not in bp.id.lower()
+                and "bicycle" not in bp.id.lower()
+                and "motorcycle" not in bp.id.lower()
+            ]
+            
+            # Fallback to any 4-wheel vehicle if no cars found
+            if not car_blueprints:
+                car_blueprints = [
                     bp
                     for bp in vehicle_blueprints
                     if int(bp.get_attribute("number_of_wheels")) == 4
                 ]
-            )
+            
+            if not car_blueprints:
+                print(f"⚠ No suitable vehicle blueprints found for {sumo_vehicle_id}")
+                return
+            
+            vehicle_bp = random.choice(car_blueprints)
 
             # Set random color for visibility
             if vehicle_bp.has_attribute("color"):
@@ -424,8 +567,17 @@ class CarlaSumoSync(gym.Env):
             carla_y = -position[1] + self.offset_y  # Flip Y axis
             carla_z = 0.5  # Spawn slightly above ground
 
+            # Convert SUMO angle to CARLA yaw
+            # SUMO angle: 0=north, increases clockwise
+            # CARLA yaw: 0=east, increases counter-clockwise
+            # To fix opposite rotation: negate the conversion
+            # Original: carla_yaw = 90 - angle (was causing opposite rotation)
+            # Fixed: carla_yaw = -(90 - angle) = angle - 90
+            carla_yaw = angle - 90.0
+
             transform = carla.Transform(
-                carla.Location(x=carla_x, y=carla_y, z=carla_z)
+                carla.Location(x=carla_x, y=carla_y, z=carla_z),
+                carla.Rotation(yaw=carla_yaw),
             )
 
             # Spawn vehicle
@@ -435,10 +587,7 @@ class CarlaSumoSync(gym.Env):
 
             if actor:
                 self.vehicle_actors[sumo_vehicle_id] = actor
-                print(
-                    f"✓ Spawned vehicle {sumo_vehicle_id} at CARLA "
-                    f"({carla_x:.1f}, {carla_y:.1f})"
-                )
+                # Vehicle spawning message removed for cleaner logs
 
         except Exception as e:
             print(f"⚠ Failed to spawn {sumo_vehicle_id}: {e}")
@@ -455,7 +604,7 @@ class CarlaSumoSync(gym.Env):
             angle: Heading angle in degrees
         """
         if sumo_vehicle_id not in self.vehicle_actors:
-            self.spawn_vehicle_in_carla(sumo_vehicle_id, position)
+            self.spawn_vehicle_in_carla(sumo_vehicle_id, position, angle)
             return
 
         actor = self.vehicle_actors[sumo_vehicle_id]
@@ -468,8 +617,10 @@ class CarlaSumoSync(gym.Env):
 
             # SUMO angle: 0=north, increases clockwise
             # CARLA yaw: 0=east, increases counter-clockwise
-            # Convert: CARLA_yaw = 90 - SUMO_angle
-            carla_yaw = 90.0 - angle
+            # To fix opposite rotation: negate the conversion
+            # Original: carla_yaw = 90 - angle (was causing opposite rotation)
+            # Fixed: carla_yaw = -(90 - angle) = angle - 90
+            carla_yaw = angle - 90.0
 
             # Update transform
             transform = carla.Transform(
@@ -525,52 +676,6 @@ class CarlaSumoSync(gym.Env):
                 # Vehicle might have left the simulation
                 continue
 
-    def adjust_traffic_light_height(self, z_offset: float = -1.5):
-        """
-        Adjust the height of all traffic lights in the world.
-
-        Args:
-            z_offset: Vertical offset to apply
-                      (negative = lower, positive = higher)
-                     Default: -1.5 meters (lowers traffic lights)
-
-        To change the height, modify the z_offset parameter in connect_carla()
-        """
-        if self.world is None:
-            return
-        traffic_lights = self.world.get_actors().filter(
-            "traffic.traffic_light*"
-        )
-
-        if not traffic_lights:
-            print("  ⚠ No traffic lights found in the world")
-            return
-
-        adjusted_count = 0
-        for tl in traffic_lights:
-            try:
-                current_transform = tl.get_transform()
-                new_transform = carla.Transform(
-                    carla.Location(
-                        x=current_transform.location.x,
-                        y=current_transform.location.y,
-                        z=current_transform.location.z
-                        + z_offset,  # Apply offset
-                    ),
-                    current_transform.rotation,
-                )
-                tl.set_transform(new_transform)
-                adjusted_count += 1
-            except Exception:
-                continue
-
-        if adjusted_count > 0:
-            print(
-                f"  ✓ Adjusted {adjusted_count} traffic light(s) by {z_offset}m"
-            )
-        else:
-            print("  ⚠ Could not adjust traffic lights")
-
     def set_initial_camera_view(self):
         """Position camera at start to view the simulation area."""
         # Position camera to view the area where SUMO vehicles will appear
@@ -596,6 +701,59 @@ class CarlaSumoSync(gym.Env):
         print("     • Scroll DOWN: Decrease movement speed")
         print("")
         print("  💡 Tip: Scroll up several times for FAST camera movement!")
+
+    def _setup_video_recording(self):
+        """Setup video recording using CARLA Recorder API."""
+        if not self.enable_video_recording:
+            return
+
+        if RecorderVideoGenerator is None or self.client is None:
+            print("⚠ CARLA Recorder API not available for video recording")
+            self.enable_video_recording = False
+            return
+
+        try:
+            # Determine output directory
+            output_dir = self.video_output_dir
+            if output_dir is None:
+                output_dir = "./data"
+                if self.experiment_name:
+                    output_dir = f"./data/{self.experiment_name}"
+
+            # Create recorder-based video generator
+            video_filename = None
+            if self.experiment_name:
+                video_filename = f"simulation_{self.experiment_name}.mp4"
+            
+            self.video_recorder = RecorderVideoGenerator(
+                client=self.client,
+                output_dir=output_dir,
+                video_width=self.video_width,
+                video_height=self.video_height,
+                video_fps=self.video_fps,
+            )
+            
+            # Start recording
+            if self.video_recorder is not None:
+                success = self.video_recorder.start_recording(
+                    experiment_name=self.experiment_name,
+                    video_filename=video_filename,
+                )
+            else:
+                success = False
+            
+            if success:
+                self._recorder_start_time = time.time()
+                print("✓ CARLA recorder started - simulation will be recorded")
+            else:
+                print("⚠ Failed to start CARLA recorder")
+                self.video_recorder = None
+                self.enable_video_recording = False
+                
+        except Exception as e:
+            print(f"⚠ Error setting up video recording: {e}")
+            self.video_recorder = None
+            self.enable_video_recording = False
 
     def update_spectator_camera(self):
         """Move spectator camera to follow the action."""
@@ -629,6 +787,14 @@ class CarlaSumoSync(gym.Env):
         self, duration: int | None, start_time: float
     ) -> tuple[bool, str]:
         """Check if simulation should stop. Returns (should_stop, reason)."""
+        # Ensure duration is a number, not a string
+        if duration is not None:
+            try:
+                duration = int(duration)
+            except (ValueError, TypeError):
+                # If duration is not a valid number, ignore it
+                duration = None
+        
         if duration and (time.time() - start_time) > duration:
             return True, f"\n✓ Simulation completed ({duration}s)"
 
@@ -650,12 +816,27 @@ class CarlaSumoSync(gym.Env):
 
         if self.world is None:
             return False
-        self.world.tick()
+        
+        try:
+            self.world.tick()
+        except Exception as e:
+            # If this happens right after camera setup, the camera might be the cause
+            if self.video_recorder and self.video_recorder.recording_camera and step >= 30:
+                try:
+                    self.video_recorder.recording_camera.stop()
+                except Exception:
+                    pass
+            raise
         return True
 
     def _print_progress(self, step: int, start_time: float):
         """Print simulation progress indicator."""
-        if step % 20 == 0:  # Update every second (20 steps * 0.05s)
+        # Reduce print frequency when video recording for maximum speed
+        # When recording: print every 200 steps (less frequent)
+        # When not recording: print every 20 steps (normal)
+        print_interval = 200 if self.enable_video_recording else 20
+        
+        if step % print_interval == 0:  # Update less frequently when recording
             elapsed = time.time() - start_time
             num_vehicles = len(traci.vehicle.getIDList())
             print(
@@ -1035,6 +1216,10 @@ class CarlaSumoSync(gym.Env):
             # Position camera to view the simulation area
             self.set_initial_camera_view()
 
+            # Start video recording immediately if enabled (CARLA Recorder API doesn't need delay)
+            if self.enable_video_recording:
+                self._setup_video_recording()
+
             # Initialize state tracking
             self._initialized = True
             self._step_count = 0
@@ -1051,6 +1236,10 @@ class CarlaSumoSync(gym.Env):
             print(f"  Duration: {duration if duration else 'infinite'}")
             print(f"  TLS manager: {self.tls_manager}")
             print(f"  Sync vehicle lights: {self.sync_vehicle_lights}")
+            if self.enable_video_recording:
+                print(f"  Video recording: Enabled ({self.video_width}x{self.video_height} @ {self.video_fps}fps)")
+                if self.video_duration:
+                    print(f"  Video duration: {self.video_duration}s (simulation will stop after recording completes)")
 
             print("\n▶ Simulation running... (Press Ctrl+C to stop)\n")
 
@@ -1070,8 +1259,57 @@ class CarlaSumoSync(gym.Env):
                     if result["done"] or result["truncated"]:
                         break
                 except Exception as e:
+                    error_msg = str(e)
                     print(f"\n⚠ Error during simulation step: {e}")
+                    # Continue simulation even on timeout
                     break
+
+                # Check if video recording duration has elapsed (for CARLA Recorder API)
+                if self.video_recorder is not None and self.video_recorder.is_recording:
+                    # Track recording start time if not already set
+                    if self._recorder_start_time is None:
+                        self._recorder_start_time = time.time()
+                    
+                    # Check if video_duration has elapsed
+                    if self.video_duration is not None and self._recorder_start_time is not None:
+                        elapsed_time = time.time() - self._recorder_start_time
+                        if elapsed_time >= self.video_duration:
+                            # Stop recording after video_duration seconds
+                            print(f"\n[INFO] Video recording duration ({self.video_duration}s) reached. Stopping recording...")
+                            try:
+                                recording_file = self.video_recorder.stop_recording()
+                                if recording_file:
+                                    print(f"✓ Recording stopped. Generating video from recording...")
+                                    # Generate video from recording
+                                    video_path = self.video_recorder.generate_video_from_recording(
+                                        world=self.world,
+                                        recording_file=recording_file,
+                                        duration=self.video_duration,
+                                    )
+                                    if video_path:
+                                        print(f"✓ Video saved: {video_path}")
+                                        self.video_recorder = None
+                                        
+                                        # Stop simulation after video is saved
+                                        print(f"\n[INFO] Simulation stopped after {self.video_duration}s video recording.")
+                                        print("✓ Video generated successfully - simulation complete")
+                                        break
+                                    else:
+                                        print("⚠ Failed to generate video from recording")
+                                        self.video_recorder = None
+                                        break
+                                else:
+                                    print("⚠ Recording file was not created")
+                                    self.video_recorder = None
+                                    break
+                            except Exception as e:
+                                print(f"⚠ Error stopping video recording: {e}")
+                                import traceback
+                                traceback.print_exc()
+                                self.video_recorder = None
+                                # Still stop simulation even if video generation failed
+                                print(f"\n[INFO] Simulation stopped after {self.video_duration}s (video generation had errors).")
+                                break
 
                 # Print progress
                 self._print_progress(self._step_count, self._start_time)
@@ -1130,6 +1368,33 @@ class CarlaSumoSync(gym.Env):
         except Exception:
             # TraCI may already be closed, ignore
             pass
+
+        # Stop video recording and generate video (with error handling to prevent crashes)
+        if self.video_recorder is not None:
+            try:
+                # Stop recording if still active
+                if self.video_recorder.is_recording:
+                    print("\n[INFO] Stopping video recording and generating video...")
+                    recording_file = self.video_recorder.stop_recording()
+                    if recording_file and self.world:
+                        # Generate video from recording
+                        video_path = self.video_recorder.generate_video_from_recording(
+                            world=self.world,
+                            recording_file=recording_file,
+                            duration=self.video_duration,
+                        )
+                        if video_path:
+                            print(f"✓ Video saved: {video_path}")
+                else:
+                    # Recording already stopped, just cleanup
+                    self.video_recorder.cleanup()
+            except Exception as e:
+                print(f"⚠ Error during video recorder cleanup: {e}")
+                import traceback
+                traceback.print_exc()
+                # Continue cleanup even if video recorder fails
+            finally:
+                self.video_recorder = None
 
         # Reset state tracking
         self._initialized = False

@@ -27,6 +27,9 @@ def run_carla(*args, **kwargs):
     Args:
         simulation_name (str): Name of simulation to run (e.g., "simple4")
         duration (int, optional): Simulation duration in seconds. Default: 120
+        enable_video_recording (bool, optional): Enable video recording. Default: False
+        video_output_dir (str, optional): Directory to save video files. Default: None
+        video_duration (int, optional): Duration in seconds to record video. If not specified, records for entire simulation duration. Default: None
         *args, **kwargs: Additional arguments passed to CARLA runner
 
     Example:
