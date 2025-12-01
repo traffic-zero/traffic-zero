@@ -181,6 +181,9 @@ def run_in_carla(
     experiment_name: str | None = None,
     duration: int = 300,
     use_sumo_network: bool = True,
+    enable_video_recording: bool = False,
+    video_output_dir: str | None = None,
+    video_duration: int | None = None,
 ):
     """
     Run a SUMO scenario in CARLA simulator.
@@ -191,6 +194,9 @@ def run_in_carla(
                          If provided, generates routes and tls from scenario.
         duration: Simulation duration in seconds (default: 300s = 5 minutes)
         use_sumo_network: Use SUMO network as CARLA map (default: True)
+        enable_video_recording: Enable video recording (default: False)
+        video_output_dir: Directory to save video files (default: None, uses data/<experiment_name>/)
+        video_duration: Duration in seconds to record video (default: None = record for entire simulation duration)
 
     Example:
         >>> from sim import run_in_carla
@@ -258,12 +264,21 @@ def run_in_carla(
         print(f"Use SUMO network: {use_sumo_network}")
         print("-" * 60)
 
+        # Determine video output directory
+        video_dir = video_output_dir
+        if video_dir is None and experiment_name and enable_video_recording:
+            video_dir = f"./data/{experiment_name}"
+
         cosim = CarlaSumoSync(
             sumo_cfg_file=str(sumo_cfg),
             step_length=0.05,
             tls_manager="sumo",
             auto_camera=False,  # Let user control camera freely
             use_sumo_network=use_sumo_network,
+            enable_video_recording=enable_video_recording,
+            video_output_dir=video_dir,
+            experiment_name=experiment_name,
+            video_duration=video_duration,
         )
 
         cosim.run_cosimulation(duration=duration)

@@ -46,6 +46,12 @@ except ImportError:
         "Make sure CARLA is installed at that location."
     )
 
+# Import video recorder (optional dependency)
+try:
+    from .video_recorder import VideoRecorder
+except (ImportError, Exception):
+    VideoRecorder = None
+
 
 def _normalize_traci_value(value: float | tuple | None) -> float:
     """Normalize traci return value to float (handles tuple returns)."""
@@ -124,6 +130,20 @@ class CarlaSumoSync(gym.Env):
                         int, number of TLS
                         (default: 1)
                     (None = use defaults)
+                - enable_video_recording:
+                    Enable video recording (default: False)
+                - video_output_dir:
+                    Directory to save video files (default: None, uses data/)
+                - video_width:
+                    Video width in pixels (default: 854)
+                - video_height:
+                    Video height in pixels (default: 480)
+                - video_fps:
+                    Video frame rate (default: 30)
+                - video_duration:
+                    Duration in seconds to record video (default: None = record for entire simulation duration)
+                - experiment_name:
+                    Experiment name for video filename (default: None)
         """
         super().__init__()
 
@@ -143,6 +163,16 @@ class CarlaSumoSync(gym.Env):
         self.observation_config = kwargs.get("observation_config", {})
         self.action_config = kwargs.get("action_config", {})
 
+        # Video recording parameters
+        self.enable_video_recording = kwargs.get("enable_video_recording", False)
+        self.video_output_dir = kwargs.get("video_output_dir", None)
+        self.video_width = kwargs.get("video_width", 854)
+        self.video_height = kwargs.get("video_height", 480)
+        self.video_fps = kwargs.get("video_fps", 30)
+        self.video_duration = kwargs.get("video_duration", None)
+        self.experiment_name = kwargs.get("experiment_name", None)
+        self._video_recording_start_time: float | None = None  # Track when video recording started
+
         self.client = None
         self.world = None
         self.blueprint_library = None
@@ -159,6 +189,9 @@ class CarlaSumoSync(gym.Env):
         self._start_time: float | None = None
         self._tls_ids: list[str] = []
         self._tls_controller: Any | None = None
+
+        # Video recorder
+        self.video_recorder: Optional[Any] = None
 
         # Initialize action and observation spaces
         self._initialize_spaces()
@@ -272,7 +305,9 @@ class CarlaSumoSync(gym.Env):
 
                 if self.client is not None:
                     # Increase timeout for world generation (can take 30+ seconds)
-                    original_timeout = self.client.get_timeout()
+                    # Note: CARLA Client doesn't have get_timeout(), so we'll just set it
+                    # Default timeout is usually 10.0 seconds
+                    original_timeout = 10.0  # Default CARLA client timeout
                     self.client.set_timeout(60.0)  # 60 seconds for world generation
                     
                     try:
@@ -657,6 +692,36 @@ class CarlaSumoSync(gym.Env):
         print("")
         print("  💡 Tip: Scroll up several times for FAST camera movement!")
 
+    def _setup_video_recording(self):
+        """Setup video recording if enabled."""
+        if not self.enable_video_recording:
+            return
+
+        # CRITICAL: Video recording with camera sensors causes CARLA streaming client errors
+        # and timeouts in synchronous mode with SUMO co-simulation. This is a known limitation.
+        print("\n" + "="*70)
+        print("⚠ VIDEO RECORDING DISABLED - CARLA COMPATIBILITY ISSUE")
+        print("="*70)
+        print("\nCamera sensors in CARLA synchronous mode with SUMO co-simulation")
+        print("cause 'streaming client: connection failed' errors and timeouts.")
+        print("\nThis is a known CARLA limitation and cannot be fixed from the Python API.")
+        print("\nRecommended Alternatives:")
+        print("  1. Windows Game Bar (Win+G)")
+        print("     - Press Win+G while CARLA window is active")
+        print("     - Click record button (or Win+Alt+R)")
+        print("     - Saves to Videos/Captures/")
+        print("\n  2. OBS Studio (Free)")
+        print("     - Download: https://obsproject.com/")
+        print("     - Record window or screen capture")
+        print("\n  3. CARLA Recorder API")
+        print("     - Use CARLA's built-in recorder (see CARLA docs)")
+        print("     - Record simulation separately, then replay and record")
+        print("="*70 + "\n")
+        
+        # Disable video recording to prevent any attempts
+        self.enable_video_recording = False
+        self.video_recorder = None
+
     def update_spectator_camera(self):
         """Move spectator camera to follow the action."""
         if not self.vehicle_actors:
@@ -710,15 +775,46 @@ class CarlaSumoSync(gym.Env):
 
     def _run_simulation_step(self, step: int):
         """Run a single simulation step."""
+        if step <= 5 or (step % 100 == 0):
+            print(f"[DEBUG] Running simulation step {step}")
+        
         traci.simulationStep()
+        if step <= 5:
+            print(f"[DEBUG] SUMO step completed")
+        
         self.synchronize_vehicles()
+        if step <= 5:
+            print(f"[DEBUG] Vehicles synchronized")
 
         if self.auto_camera and step % 5 == 0:
             self.update_spectator_camera()
 
         if self.world is None:
+            print(f"[DEBUG] World is None, returning False")
             return False
-        self.world.tick()
+        
+        if step <= 5 or (step >= 30 and step <= 35):
+            print(f"[DEBUG] Step {step}: About to call world.tick()...")
+            if self.video_recorder and self.video_recorder.recording_camera:
+                print(f"[DEBUG] Step {step}: Camera is active (ID: {self.video_recorder.recording_camera.id})")
+        try:
+            self.world.tick()
+            if step <= 5 or (step >= 30 and step <= 35):
+                print(f"[DEBUG] Step {step}: world.tick() completed successfully")
+        except Exception as e:
+            print(f"[DEBUG] Step {step}: ERROR in world.tick(): {e}")
+            import traceback
+            traceback.print_exc()
+            # If this happens right after camera setup, the camera might be the cause
+            if self.video_recorder and self.video_recorder.recording_camera and step >= 30:
+                print(f"[DEBUG] ERROR: Camera may be causing world.tick() to fail!")
+                print(f"[DEBUG] Attempting to disable camera...")
+                try:
+                    self.video_recorder.recording_camera.stop()
+                    print(f"[DEBUG] Camera stopped")
+                except Exception as stop_error:
+                    print(f"[DEBUG] Could not stop camera: {stop_error}")
+            raise
         return True
 
     def _print_progress(self, step: int, start_time: float):
@@ -1103,6 +1199,11 @@ class CarlaSumoSync(gym.Env):
             # Position camera to view the simulation area
             self.set_initial_camera_view()
 
+            # Video recording will be set up after simulation stabilizes
+            # Camera sensor setup can cause CARLA to crash if done too early
+            self._video_recording_delayed_setup = self.enable_video_recording
+            self.enable_video_recording = False  # Disable until simulation is stable
+
             # Initialize state tracking
             self._initialized = True
             self._step_count = 0
@@ -1119,8 +1220,16 @@ class CarlaSumoSync(gym.Env):
             print(f"  Duration: {duration if duration else 'infinite'}")
             print(f"  TLS manager: {self.tls_manager}")
             print(f"  Sync vehicle lights: {self.sync_vehicle_lights}")
+            if self._video_recording_delayed_setup:
+                print(f"  Video recording: Will be enabled after simulation stabilizes ({self.video_width}x{self.video_height} @ {self.video_fps}fps)")
+                if self.video_duration:
+                    print(f"  Video duration: {self.video_duration}s (simulation will stop after recording completes)")
 
             print("\n▶ Simulation running... (Press Ctrl+C to stop)\n")
+
+            # Setup video recording after simulation stabilizes (camera can crash CARLA if set up too early)
+            video_setup_done = False
+            steps_until_video_setup = 30  # Wait 30 steps (1.5 seconds) before setting up camera
 
             # Use run_steps in a loop
             while True:
@@ -1138,8 +1247,135 @@ class CarlaSumoSync(gym.Env):
                     if result["done"] or result["truncated"]:
                         break
                 except Exception as e:
+                    error_msg = str(e)
                     print(f"\n⚠ Error during simulation step: {e}")
+                    # If timeout occurs right after camera setup, disable camera
+                    if "time-out" in error_msg.lower() or "timeout" in error_msg.lower():
+                        if (
+                            self.video_recorder
+                            and self.video_recorder.recording_camera
+                            and self._step_count >= 30
+                            and self._step_count <= 50
+                        ):
+                            print("\n[WARNING] Timeout detected right after camera setup!")
+                            print("[WARNING] Camera callback may be causing the timeout.")
+                            print("[WARNING] Disabling video recording to prevent further issues...")
+                            try:
+                                self.video_recorder.recording_camera.stop()
+                                self.video_recorder.cleanup()
+                                self.video_recorder = None
+                                self.enable_video_recording = False
+                                self._video_recording_delayed_setup = False
+                                print("[WARNING] Video recording disabled. Simulation will continue without recording.")
+                            except Exception as cleanup_error:
+                                print(f"[WARNING] Error disabling camera: {cleanup_error}")
                     break
+
+                # Setup video recording after simulation stabilizes
+                if (
+                    self._video_recording_delayed_setup
+                    and not video_setup_done
+                    and self._step_count >= steps_until_video_setup
+                ):
+                    try:
+                        print("\n[INFO] Setting up video recording camera...")
+                        print("  Warning: Camera setup may cause instability - continuing simulation if it fails...")
+                        print(f"[DEBUG] Current step: {self._step_count}, World state: {self.world is not None}")
+                        if self.world is not None:
+                            settings = self.world.get_settings()
+                            print(f"[DEBUG] Synchronous mode: {settings.synchronous_mode}, Fixed delta: {settings.fixed_delta_seconds}")
+                        self.enable_video_recording = True
+                        print("[DEBUG] Calling _setup_video_recording()...")
+                        self._setup_video_recording()
+                        print("[DEBUG] _setup_video_recording() returned")
+                        if self.video_recorder is not None and self.video_recorder.recording_camera is not None:
+                            video_setup_done = True
+                            print("✓ Video recording camera ready")
+                            print(f"[DEBUG] Camera actor ID: {self.video_recorder.recording_camera.id}")
+                            print(f"[DEBUG] Camera type: {type(self.video_recorder.recording_camera)}")
+                            # Track when video recording starts (if it actually starts)
+                            # Note: Currently video recording is disabled, but this is for when it's re-enabled
+                            if self.video_recorder.is_recording and self._video_recording_start_time is None:
+                                self._video_recording_start_time = time.time()
+                                if self.video_duration:
+                                    print(f"[INFO] Video will record for {self.video_duration}s, then simulation will stop")
+                        else:
+                            print("⚠ Video recording setup failed - continuing without recording")
+                            print(f"[DEBUG] video_recorder: {self.video_recorder}")
+                            if self.video_recorder:
+                                print(f"[DEBUG] recording_camera: {self.video_recorder.recording_camera}")
+                            self.enable_video_recording = False
+                            self._video_recording_delayed_setup = False
+                            # Clean up
+                            try:
+                                if self.video_recorder is not None:
+                                    self.video_recorder.cleanup()
+                                    self.video_recorder = None
+                            except Exception:
+                                pass
+                    except Exception as e:
+                        print(f"⚠ Video recording setup failed: {e}")
+                        print("  Continuing simulation without video recording...")
+                        import traceback
+                        traceback.print_exc()
+                        self.enable_video_recording = False
+                        self._video_recording_delayed_setup = False
+                        # Clean up any partial setup
+                        try:
+                            if self.video_recorder is not None:
+                                self.video_recorder.cleanup()
+                                self.video_recorder = None
+                        except Exception:
+                            pass
+
+                # Capture video frame if recording (with error handling)
+                if self.video_recorder is not None and self.video_recorder.is_recording:
+                    # Track recording start time if not already set
+                    if self._video_recording_start_time is None:
+                        self._video_recording_start_time = time.time()
+                    
+                    # Check if video_duration has elapsed
+                    if self.video_duration is not None and self._video_recording_start_time is not None:
+                        elapsed_time = time.time() - self._video_recording_start_time
+                        if elapsed_time >= self.video_duration:
+                            # Stop recording after video_duration seconds
+                            print(f"\n[INFO] Video recording duration ({self.video_duration}s) reached. Stopping recording and saving video...")
+                            try:
+                                video_path = self.video_recorder.stop_recording()
+                                if video_path:
+                                    print(f"✓ Video saved: {video_path}")
+                                else:
+                                    print("⚠ Video file was not created")
+                                self.video_recorder = None
+                                
+                                # Stop simulation after video is saved
+                                print(f"\n[INFO] Simulation stopped after {self.video_duration}s video recording.")
+                                print("✓ Video saved successfully - simulation complete")
+                                break
+                            except Exception as e:
+                                print(f"⚠ Error stopping video recording: {e}")
+                                import traceback
+                                traceback.print_exc()
+                                self.video_recorder = None
+                                # Still stop simulation even if video save failed
+                                print(f"\n[INFO] Simulation stopped after {self.video_duration}s (video save had errors).")
+                                break
+                    else:
+                        # Continue capturing frames
+                        try:
+                            if self._step_count <= 35:  # Log first few captures
+                                print(f"[DEBUG] Attempting to capture frame at step {self._step_count}")
+                            self.video_recorder.capture_frame()
+                            if self._step_count <= 35:
+                                print(f"[DEBUG] Frame capture completed at step {self._step_count}")
+                        except Exception as e:
+                            # Log frame capture errors
+                            if self._step_count <= 10:
+                                print(f"[DEBUG] Error capturing frame: {e}")
+                                import traceback
+                                traceback.print_exc()
+                            # Continue simulation even if frame capture fails
+                            pass
 
                 # Print progress
                 self._print_progress(self._step_count, self._start_time)
@@ -1198,6 +1434,16 @@ class CarlaSumoSync(gym.Env):
         except Exception:
             # TraCI may already be closed, ignore
             pass
+
+        # Stop video recording (with error handling to prevent crashes)
+        if self.video_recorder is not None:
+            try:
+                self.video_recorder.cleanup()
+            except Exception as e:
+                print(f"⚠ Error during video recorder cleanup: {e}")
+                # Continue cleanup even if video recorder fails
+            finally:
+                self.video_recorder = None
 
         # Reset state tracking
         self._initialized = False

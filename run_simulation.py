@@ -61,6 +61,17 @@ def main():
         default="rush_hour",
         help="Experiment name",
     )
+    parser.add_argument(
+        "--record-video",
+        action="store_true",
+        help="Enable video recording for CARLA simulations",
+    )
+    parser.add_argument(
+        "--video-duration",
+        type=int,
+        default=None,
+        help="Duration in seconds to record video (only used if --record-video is set). If not specified, records for entire simulation duration.",
+    )
 
     args = parser.parse_args()
     if args.generate_dataset:
@@ -73,7 +84,17 @@ def main():
     elif args.mode == "automated":
         run_automated("simple4", args.experiment_name)
     elif args.mode == "carla":
-        run_carla("simple4", args.experiment_name)
+        # Determine video output directory
+        video_output_dir = None
+        if args.record_video and args.experiment_name:
+            video_output_dir = f"./data/{args.experiment_name}"
+        run_carla(
+            "simple4",
+            args.experiment_name,
+            enable_video_recording=args.record_video,
+            video_output_dir=video_output_dir,
+            video_duration=args.video_duration,
+        )
 
 
 if __name__ == "__main__":
