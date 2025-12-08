@@ -256,3 +256,6 @@ sim/**/*.net.xml
 output/
 data/
 *.csv
+
+# Models
+models/

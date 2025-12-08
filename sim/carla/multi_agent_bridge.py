@@ -1,17 +1,19 @@
 """
-Multi-Agent Environment Wrapper for CARLA-SUMO Co-Simulation
+Multi-Agent Environment Wrapper for Traffic Simulation
 
 Provides multi-agent RL interface where each intersection is an
 independent agent. Supports centralized training with decentralized
 execution (CTDE).
+
+Supports two modes:
+- SUMO-only (default): Fast, lightweight training without CARLA
+- CARLA co-simulation: 3D visualization, camera support for YOLO integration
 """
 
 from typing import Any
 import numpy as np
 import traci
 from gymnasium import spaces
-
-from .bridge import CarlaSumoGymEnv
 
 
 class MultiAgentTrafficEnv:
@@ -32,7 +34,10 @@ class MultiAgentTrafficEnv:
         observation_config: dict[str, Any] | None = None,
         action_config: dict[str, Any] | None = None,
         video_config: dict[str, Any] | None = None,
+        reward_config: dict[str, Any] | None = None,
         device: str | None = None,
+        use_carla: bool = False,
+        gui: bool = False,
         **kwargs,
     ):
         """
@@ -46,23 +51,56 @@ class MultiAgentTrafficEnv:
             observation_config: Configuration for observation spaces
             action_config: Configuration for action spaces
             video_config: Configuration for video recording
+            reward_config: Configuration for reward function
             device: Compute device ('cuda', 'npu', 'cpu', or None for auto)
-            **kwargs: Additional parameters passed to CarlaSumoGymEnv
+            use_carla: If True, use CARLA co-simulation; if False, SUMO-only
+            gui: If True, use SUMO-GUI for visualization (SUMO-only mode)
+            **kwargs: Additional parameters passed to base environment
         """
         self.sumo_cfg_file = sumo_cfg_file
         self.enable_ctde = enable_ctde
         self.neighbor_radius = neighbor_radius
         self.device = device
+        self.use_carla = use_carla
+        self.gui = gui
 
-        self.base_env = CarlaSumoGymEnv(
-            sumo_cfg_file=sumo_cfg_file,
-            enable_rl_control=True,
-            observation_config=observation_config or {},
-            action_config=action_config or {},
-            video_config=video_config or {},
-            device=device,
-            **kwargs,
-        )
+        # Store action config for action space creation
+        self.action_config = action_config or {}
+        self.num_phases = self.action_config.get("num_phases", 4)
+        min_duration = self.action_config.get("min_duration", 10)
+        max_duration = self.action_config.get("max_duration", 90)
+        duration_step = self.action_config.get("duration_step", 10)
+        self.num_duration_steps = (
+            (max_duration - min_duration) // duration_step
+        ) + 1
+
+        # Conditionally import and instantiate the appropriate environment
+        if use_carla:
+            from .bridge import CarlaSumoGymEnv
+
+            self.base_env = CarlaSumoGymEnv(
+                sumo_cfg_file=sumo_cfg_file,
+                enable_rl_control=True,
+                observation_config=observation_config or {},
+                action_config=action_config or {},
+                video_config=video_config or {},
+                device=device,
+                **kwargs,
+            )
+        else:
+            from sim.sumo.gym_env import SumoGymEnv
+
+            self.base_env = SumoGymEnv(
+                sumo_cfg_file=sumo_cfg_file,
+                enable_rl_control=True,
+                observation_config=observation_config or {},
+                action_config=action_config or {},
+                video_config=video_config or {},
+                reward_config=reward_config or {},
+                device=device,
+                gui=gui,
+                **kwargs,
+            )
 
         self.num_agents = num_agents
         self.agent_ids: list[str] = []
@@ -150,18 +188,22 @@ class MultiAgentTrafficEnv:
             dtype=np.float32,
         )
 
-    def _get_agent_action_space(self, agent_id: str) -> spaces.Discrete:
+    def _get_agent_action_space(self, agent_id: str) -> spaces.MultiDiscrete:
         """
         Get action space for a single agent.
+
+        Action format: [phase, duration_idx]
+        - phase: Which traffic light phase to switch to
+        - duration_idx: How long to hold the phase (index into duration options)
 
         Args:
             agent_id: Agent (traffic light) ID
 
         Returns:
-            Action space for this agent
+            MultiDiscrete action space for this agent
         """
         num_phases = self.base_env._get_num_phases_from_tls(agent_id)
-        return spaces.Discrete(num_phases)
+        return spaces.MultiDiscrete([num_phases, self.num_duration_steps])
 
     def _get_local_observation(self, agent_id: str) -> np.ndarray:
         """
@@ -382,7 +424,8 @@ class MultiAgentTrafficEnv:
         Run one timestep of the multi-agent environment.
 
         Args:
-            actions: Dictionary mapping agent ID to action
+            actions: Dictionary mapping agent ID
+            to action tuple (phase, duration_idx)
 
         Returns:
             Tuple of (observations, rewards, terminateds, truncateds, infos)
@@ -391,14 +434,26 @@ class MultiAgentTrafficEnv:
             self._initialized
         ), "Environment not initialized. Call reset() first."
 
-        combined_action = None
-        if len(self.agent_ids) == 1:
-            combined_action = actions.get(self.agent_ids[0], 0)
-        else:
-            action_list = [
-                actions.get(agent_id, 0) for agent_id in self.agent_ids
-            ]
-            combined_action = np.array(action_list)
+        # Build combined action array: [phase1, dur1, phase2, dur2, ...]
+        action_list: list[int] = []
+        for agent_id in self.agent_ids:
+            action = actions.get(agent_id, (0, self.num_duration_steps // 2))
+            if isinstance(action, tuple):
+                phase, duration_idx = action
+            elif isinstance(action, (list, np.ndarray)):
+                phase = int(action[0]) if len(action) > 0 else 0
+                duration_idx = (
+                    int(action[1])
+                    if len(action) > 1
+                    else self.num_duration_steps // 2
+                )
+            else:
+                # Fallback: interpret as phase only with default duration
+                phase = int(action)
+                duration_idx = self.num_duration_steps // 2
+            action_list.extend([phase, duration_idx])
+
+        combined_action = np.array(action_list, dtype=np.int64)
 
         _, _, done, truncated, _ = self.base_env.step(combined_action)
 
