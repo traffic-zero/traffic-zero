@@ -678,7 +678,7 @@ class CarlaSumoSync:
                         waiting = waiting[0] if len(waiting) > 0 else 0.0
                     total_waiting += float(waiting)
 
-            reward = -total_waiting * 0.01 + vehicle_count * 0.1
+            reward = -total_waiting * 0.1 + vehicle_count * 1.0
 
         except traci.TraCIException:
             pass
@@ -1029,12 +1029,12 @@ class CarlaSumoGymEnv(gym.Env, CarlaSumoSync):
                 total_waiting += float(waiting)
             except traci.TraCIException:
                 continue
-        return -total_waiting * 0.01
+        return -total_waiting * 0.1
 
     def _calculate_throughput_reward(self) -> float:
         """Calculate positive reward based on vehicle throughput."""
         vehicle_ids = traci.vehicle.getIDList()
-        return len(vehicle_ids) * 0.1
+        return len(vehicle_ids) * 1.0
 
     def _calculate_reward(self) -> float:
         """
@@ -1058,7 +1058,10 @@ class CarlaSumoGymEnv(gym.Env, CarlaSumoSync):
 
     def _apply_action(self, action: Any) -> None:
         """
-        Apply traffic light control action.
+        Apply traffic light control action, filtering out yellow phases.
+
+        Yellow (transition) phases are automatically mapped to the nearest
+        green phase to prevent traffic from getting stuck.
 
         Args:
             action: Action from action space
@@ -1072,12 +1075,18 @@ class CarlaSumoGymEnv(gym.Env, CarlaSumoSync):
             if len(self._tls_ids) > 0:
                 tls_id = self._tls_ids[0]
                 phase = int(action)
+                # Filter out yellow phases
+                if self._is_yellow_phase(tls_id, phase):
+                    phase = self._get_nearest_green_phase(tls_id, phase)
                 traci.trafficlight.setPhase(tls_id, phase)
         elif isinstance(self.action_space, spaces.MultiDiscrete):
             action_array = np.asarray(action)
             for i, tls_id in enumerate(self._tls_ids):
                 if i < len(action_array):
                     phase = int(action_array[i])
+                    # Filter out yellow phases
+                    if self._is_yellow_phase(tls_id, phase):
+                        phase = self._get_nearest_green_phase(tls_id, phase)
                     traci.trafficlight.setPhase(tls_id, phase)
 
     def _get_num_phases_from_tls(self, tls_id: str) -> int:
@@ -1091,6 +1100,84 @@ class CarlaSumoGymEnv(gym.Env, CarlaSumoSync):
         except traci.TraCIException:
             pass
         return 4
+
+    def _is_yellow_phase(self, tls_id: str, phase: int) -> bool:
+        """
+        Check if a phase is a yellow (transition) phase.
+
+        Args:
+            tls_id: Traffic light ID
+            phase: Phase index to check
+
+        Returns:
+            True if phase is yellow, False otherwise
+        """
+        try:
+            program = traci.trafficlight.getCompleteRedYellowGreenDefinition(
+                tls_id
+            )
+            if program and len(program) > 0:
+                phases = program[0].phases
+                if 0 <= phase < len(phases):
+                    state = phases[phase].state
+                    # Yellow phases contain 'y' in the state string
+                    return "y" in state.lower()
+        except traci.TraCIException:
+            pass
+        return False
+
+    def _get_nearest_green_phase(self, tls_id: str, phase: int) -> int:
+        """
+        Get the nearest green phase to the given phase.
+
+        If the given phase is green, returns it. Otherwise, finds the
+        nearest green phase (preferring previous green phase).
+
+        Args:
+            tls_id: Traffic light ID
+            phase: Current phase index
+
+        Returns:
+            Nearest green phase index
+        """
+        try:
+            program = traci.trafficlight.getCompleteRedYellowGreenDefinition(
+                tls_id
+            )
+            if program and len(program) > 0:
+                phases = program[0].phases
+                num_phases = len(phases)
+
+                # If current phase is green, return it
+                if 0 <= phase < num_phases:
+                    state = phases[phase].state
+                    if "y" not in state.lower():
+                        return phase
+
+                # Find nearest green phase (prefer previous)
+                # Check previous phases first
+                for offset in range(1, num_phases):
+                    prev_phase = (phase - offset) % num_phases
+                    if 0 <= prev_phase < num_phases:
+                        state = phases[prev_phase].state
+                        if "y" not in state.lower():
+                            return prev_phase
+
+                # Check next phases
+                for offset in range(1, num_phases):
+                    next_phase = (phase + offset) % num_phases
+                    if 0 <= next_phase < num_phases:
+                        state = phases[next_phase].state
+                        if "y" not in state.lower():
+                            return next_phase
+        except traci.TraCIException:
+            pass
+
+        # Fallback: if phase is odd, use previous
+        # (common pattern: even=green, odd=yellow)
+        if phase % 2 == 1 and phase > 0:
+            return phase - 1
+        return phase
 
     def _update_action_space_for_multiple_tls(self) -> None:
         """Update action space when multiple traffic lights are present."""

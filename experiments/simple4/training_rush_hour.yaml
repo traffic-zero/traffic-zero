@@ -1,0 +1,559 @@
+intersection: simple4
+traffic:
+  vehicle_types:
+  - id: car
+    accel: 2.0
+    decel: 4.5
+    sigma: 0.5
+    length: 5
+    maxSpeed: 13.9
+    color: 0,1,1
+  routes:
+  - id: north_south
+    edges:
+    - eN
+    - eS_out
+  - id: south_north
+    edges:
+    - eS
+    - eN_out
+  - id: west_east
+    edges:
+    - eW
+    - eE_out
+  - id: east_west
+    edges:
+    - eE
+    - eW_out
+  - id: north_east
+    edges:
+    - eN
+    - eE_out
+  - id: south_west
+    edges:
+    - eS
+    - eW_out
+  - id: west_north
+    edges:
+    - eW
+    - eN_out
+  - id: east_south
+    edges:
+    - eE
+    - eS_out
+  flows:
+  - route: east_west
+    type: car
+    begin: 0.21
+    end: 3600
+    vehsPerHour: 332.01
+  - route: west_east
+    type: car
+    begin: 0.25
+    end: 3600
+    vehsPerHour: 740.71
+  - route: west_east
+    type: car
+    begin: 0.42
+    end: 3600
+    vehsPerHour: 514.89
+  - route: west_north
+    type: car
+    begin: 0.44
+    end: 3600
+    vehsPerHour: 714.67
+  - route: east_south
+    type: car
+    begin: 0.54
+    end: 3600
+    vehsPerHour: 731.92
+  - route: north_south
+    type: car
+    begin: 0.57
+    end: 3600
+    vehsPerHour: 673.99
+  - route: east_west
+    type: car
+    begin: 0.7
+    end: 3600
+    vehsPerHour: 482.11
+  - route: west_north
+    type: car
+    begin: 0.94
+    end: 3600
+    vehsPerHour: 315.89
+  - route: west_north
+    type: car
+    begin: 1.12
+    end: 2518.91
+    vehsPerHour: 580.45
+  - route: north_south
+    type: car
+    begin: 1.15
+    end: 3600
+    vehsPerHour: 640.14
+  - route: east_west
+    type: car
+    begin: 1.31
+    end: 3600
+    vehsPerHour: 432.81
+  - route: east_west
+    type: car
+    begin: 1.32
+    end: 3600
+    vehsPerHour: 552.94
+  - route: east_south
+    type: car
+    begin: 1.4
+    end: 3600
+    vehsPerHour: 371.44
+  - route: north_south
+    type: car
+    begin: 1.6
+    end: 3600
+    vehsPerHour: 679.4
+  - route: south_north
+    type: car
+    begin: 1.71
+    end: 3600
+    vehsPerHour: 604.57
+  - route: south_north
+    type: car
+    begin: 1.9
+    end: 3600
+    vehsPerHour: 424.33
+  - route: north_east
+    type: car
+    begin: 1.92
+    end: 3600
+    vehsPerHour: 577.21
+  - route: east_west
+    type: car
+    begin: 1.93
+    end: 3600
+    vehsPerHour: 311.83
+  - route: south_west
+    type: car
+    begin: 2.04
+    end: 3600
+    vehsPerHour: 767.35
+  - route: north_south
+    type: car
+    begin: 2.1
+    end: 3600
+    vehsPerHour: 749.46
+  - route: west_east
+    type: car
+    begin: 2.1
+    end: 3600
+    vehsPerHour: 485.09
+  - route: north_south
+    type: car
+    begin: 2.22
+    end: 3600
+    vehsPerHour: 729.3
+  - route: west_east
+    type: car
+    begin: 2.37
+    end: 3600
+    vehsPerHour: 762.88
+  - route: west_east
+    type: car
+    begin: 2.62
+    end: 3600
+    vehsPerHour: 618.56
+  - route: north_south
+    type: car
+    begin: 2.65
+    end: 3600
+    vehsPerHour: 792.65
+  - route: west_east
+    type: car
+    begin: 2.7
+    end: 2509.41
+    vehsPerHour: 531.13
+  - route: south_north
+    type: car
+    begin: 2.75
+    end: 3600
+    vehsPerHour: 312.51
+  - route: south_north
+    type: car
+    begin: 2.79
+    end: 3600
+    vehsPerHour: 783.44
+  - route: west_north
+    type: car
+    begin: 2.93
+    end: 3600
+    vehsPerHour: 339.4
+  - route: east_south
+    type: car
+    begin: 2.97
+    end: 2128.38
+    vehsPerHour: 377.4
+  - route: south_north
+    type: car
+    begin: 2.98
+    end: 3600
+    vehsPerHour: 735.26
+  - route: north_east
+    type: car
+    begin: 3.4
+    end: 3600
+    vehsPerHour: 684.3
+  - route: south_north
+    type: car
+    begin: 3.59
+    end: 3600
+    vehsPerHour: 489.96
+  - route: south_north
+    type: car
+    begin: 3.7
+    end: 3600
+    vehsPerHour: 739.64
+  - route: east_west
+    type: car
+    begin: 3.99
+    end: 3600
+    vehsPerHour: 656.47
+  - route: south_west
+    type: car
+    begin: 4.12
+    end: 3600
+    vehsPerHour: 691.19
+  - route: north_south
+    type: car
+    begin: 4.19
+    end: 3600
+    vehsPerHour: 609.69
+  - route: west_east
+    type: car
+    begin: 4.22
+    end: 3600
+    vehsPerHour: 696.04
+  - route: north_east
+    type: car
+    begin: 4.28
+    end: 3600
+    vehsPerHour: 673.51
+  - route: south_north
+    type: car
+    begin: 4.31
+    end: 3600
+    vehsPerHour: 348.47
+  - route: south_north
+    type: car
+    begin: 4.53
+    end: 3600
+    vehsPerHour: 490.06
+  - route: west_north
+    type: car
+    begin: 4.63
+    end: 3600
+    vehsPerHour: 391.74
+  - route: west_north
+    type: car
+    begin: 4.68
+    end: 3600
+    vehsPerHour: 597.94
+  - route: east_south
+    type: car
+    begin: 4.73
+    end: 3600
+    vehsPerHour: 421.5
+  - route: west_east
+    type: car
+    begin: 4.75
+    end: 3600
+    vehsPerHour: 364.2
+  - route: east_west
+    type: car
+    begin: 4.85
+    end: 3600
+    vehsPerHour: 439.24
+  - route: north_south
+    type: car
+    begin: 4.89
+    end: 3600
+    vehsPerHour: 599.47
+  - route: south_west
+    type: car
+    begin: 4.99
+    end: 3600
+    vehsPerHour: 406.31
+  - route: west_east
+    type: car
+    begin: 5.08
+    end: 3600
+    vehsPerHour: 328.44
+  - route: south_west
+    type: car
+    begin: 5.18
+    end: 3600
+    vehsPerHour: 519.05
+  - route: north_south
+    type: car
+    begin: 5.41
+    end: 3600
+    vehsPerHour: 626.07
+  - route: north_south
+    type: car
+    begin: 5.55
+    end: 467.52
+    vehsPerHour: 633.93
+  - route: south_north
+    type: car
+    begin: 5.6
+    end: 3600
+    vehsPerHour: 476.84
+  - route: east_south
+    type: car
+    begin: 5.63
+    end: 3600
+    vehsPerHour: 610.58
+  - route: north_south
+    type: car
+    begin: 5.67
+    end: 3600
+    vehsPerHour: 420.44
+  - route: south_north
+    type: car
+    begin: 5.7
+    end: 3600
+    vehsPerHour: 770.8
+  - route: west_north
+    type: car
+    begin: 5.89
+    end: 3600
+    vehsPerHour: 410.22
+  - route: north_east
+    type: car
+    begin: 5.97
+    end: 3600
+    vehsPerHour: 319.13
+  - route: west_east
+    type: car
+    begin: 6.05
+    end: 3600
+    vehsPerHour: 436.17
+  - route: north_east
+    type: car
+    begin: 6.07
+    end: 3351.63
+    vehsPerHour: 563.84
+  - route: south_west
+    type: car
+    begin: 6.63
+    end: 3600
+    vehsPerHour: 611.58
+  - route: north_east
+    type: car
+    begin: 6.67
+    end: 3600
+    vehsPerHour: 553.56
+  - route: south_north
+    type: car
+    begin: 6.75
+    end: 3600
+    vehsPerHour: 597.52
+  - route: east_south
+    type: car
+    begin: 6.97
+    end: 3600
+    vehsPerHour: 442.62
+  - route: south_west
+    type: car
+    begin: 7.05
+    end: 3600
+    vehsPerHour: 588.68
+  - route: east_west
+    type: car
+    begin: 7.08
+    end: 3600
+    vehsPerHour: 303.6
+  - route: east_west
+    type: car
+    begin: 7.09
+    end: 3600
+    vehsPerHour: 427.36
+  - route: north_south
+    type: car
+    begin: 7.16
+    end: 3600
+    vehsPerHour: 580.62
+  - route: south_north
+    type: car
+    begin: 7.28
+    end: 3600
+    vehsPerHour: 330.31
+  - route: north_east
+    type: car
+    begin: 7.3
+    end: 3600
+    vehsPerHour: 703.56
+  - route: east_south
+    type: car
+    begin: 7.52
+    end: 3600
+    vehsPerHour: 458.09
+  - route: north_east
+    type: car
+    begin: 7.62
+    end: 3600
+    vehsPerHour: 785.94
+  - route: east_west
+    type: car
+    begin: 7.63
+    end: 3600
+    vehsPerHour: 376.42
+  - route: east_west
+    type: car
+    begin: 7.87
+    end: 3600
+    vehsPerHour: 433.4
+  - route: east_west
+    type: car
+    begin: 8.05
+    end: 3600
+    vehsPerHour: 710.9
+  - route: east_south
+    type: car
+    begin: 8.21
+    end: 3600
+    vehsPerHour: 474.83
+  - route: south_west
+    type: car
+    begin: 8.32
+    end: 3600
+    vehsPerHour: 739.36
+  - route: north_east
+    type: car
+    begin: 8.34
+    end: 3600
+    vehsPerHour: 503.04
+  - route: west_east
+    type: car
+    begin: 8.35
+    end: 3600
+    vehsPerHour: 572.8
+  - route: east_west
+    type: car
+    begin: 8.43
+    end: 3600
+    vehsPerHour: 642.31
+  - route: west_north
+    type: car
+    begin: 8.44
+    end: 3600
+    vehsPerHour: 639.76
+  - route: north_east
+    type: car
+    begin: 8.46
+    end: 3600
+    vehsPerHour: 752.67
+  - route: south_north
+    type: car
+    begin: 8.49
+    end: 3600
+    vehsPerHour: 763.18
+  - route: east_west
+    type: car
+    begin: 8.53
+    end: 3600
+    vehsPerHour: 643.75
+  - route: south_north
+    type: car
+    begin: 8.6
+    end: 3600
+    vehsPerHour: 752.71
+  - route: south_north
+    type: car
+    begin: 8.61
+    end: 3600
+    vehsPerHour: 677.89
+  - route: south_north
+    type: car
+    begin: 8.61
+    end: 3600
+    vehsPerHour: 521.57
+  - route: east_south
+    type: car
+    begin: 8.65
+    end: 683.45
+    vehsPerHour: 540.68
+  - route: west_east
+    type: car
+    begin: 8.9
+    end: 3600
+    vehsPerHour: 432.23
+  - route: south_north
+    type: car
+    begin: 8.92
+    end: 3600
+    vehsPerHour: 638.35
+  - route: west_north
+    type: car
+    begin: 9.03
+    end: 3600
+    vehsPerHour: 638.66
+  - route: south_north
+    type: car
+    begin: 9.43
+    end: 3600
+    vehsPerHour: 405.49
+  - route: west_east
+    type: car
+    begin: 9.54
+    end: 3600
+    vehsPerHour: 526.86
+  - route: north_east
+    type: car
+    begin: 9.57
+    end: 3600
+    vehsPerHour: 377.74
+  - route: north_south
+    type: car
+    begin: 9.7
+    end: 3600
+    vehsPerHour: 357.67
+  - route: east_south
+    type: car
+    begin: 9.78
+    end: 3600
+    vehsPerHour: 708.01
+  - route: south_west
+    type: car
+    begin: 9.84
+    end: 3600
+    vehsPerHour: 518.2
+  - route: east_west
+    type: car
+    begin: 9.85
+    end: 3600
+    vehsPerHour: 686.53
+  - route: north_east
+    type: car
+    begin: 9.87
+    end: 3600
+    vehsPerHour: 605.84
+  - route: south_west
+    type: car
+    begin: 9.98
+    end: 3600
+    vehsPerHour: 409.66
+traffic_lights:
+  programs:
+  - id: n0
+    program_id: custom
+    offset: 0
+    type: static
+    phases:
+    - duration: 20
+      state: GGGGrrrrGGGGrrrr
+    - duration: 4
+      state: yyyyrrrryyyyrrrr
+    - duration: 20
+      state: rrrrGGGGrrrrGGGG
+    - duration: 4
+      state: rrrryyyyrrrryyyy

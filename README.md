@@ -78,7 +78,21 @@ python agents/train_multi_agent_ppo.py \
     --sumo-cfg sim/intersections/simple4/simple4.sumocfg \
     --config configs/multi_agent_ppo.yaml \
     --output-dir models/multi_agent_ppo \
-    --total-timesteps 100000
+    --total-timesteps 100000 \
+    --train-only
+```
+
+### 9. Evaluate Multi-Agent PPO
+
+Evaluate the trained model using this script:
+
+```bash
+python -m agents.train_multi_agent_ppo \
+    --sumo-cfg sim/intersections/simple4/simple4.sumocfg \
+    --config configs/multi_agent_ppo.yaml \
+    --output-dir models/multi_agent_ppo \
+    --eval-only \
+    --gui-episodes 1
 ```
 
 **Features:**
