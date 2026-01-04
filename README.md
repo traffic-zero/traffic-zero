@@ -74,7 +74,7 @@ python agents/train_agent.py --config configs/rl_agent.yaml
 Train multiple traffic light agents using centralized training with decentralized execution (CTDE):
 
 ```bash
-python agents/train_multi_agent_ppo.py \
+python -m agents.train_multi_agent_ppo \
     --sumo-cfg sim/intersections/simple4/simple4.sumocfg \
     --config configs/multi_agent_ppo.yaml \
     --output-dir models/multi_agent_ppo \
